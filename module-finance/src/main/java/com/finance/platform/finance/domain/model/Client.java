@@ -1,4 +1,4 @@
-package com.finance.platform.auth.domain.model;
+package com.finance.platform.finance.domain.model;
 
 import com.finance.platform.core.domain.TenantAwareEntity;
 import jakarta.persistence.Column;
@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,42 +16,42 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
-@Table(name = "users")
+@Table(name = "clients", uniqueConstraints = @UniqueConstraint(columnNames = {"firm_id", "name"}))
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class User extends TenantAwareEntity {
-
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "role_id", nullable = false)
-	private Role role;
-
-	@Column(nullable = false, unique = true, length = 255)
-	private String email;
-
-	@Column(nullable = false, length = 255)
-	private String passwordHash;
+public class Client extends TenantAwareEntity {
 
 	@Column(nullable = false, length = 200)
-	private String fullName;
+	private String name;
 
-	@Column(length = 30)
-	private String phone;
+	@Column(length = 50)
+	private String businessRegNo;
+
+	@Column(length = 255)
+	private String contactEmail;
 
 	@Column(nullable = false)
 	@Builder.Default
 	private boolean active = true;
 
-	private Instant lastLoginAt;
 	private Instant deletedAt;
 
-	@OneToMany(mappedBy = "user")
+	@OneToMany(mappedBy = "client")
 	@Builder.Default
-	private Set<UserClientAccess> clientAccesses = new HashSet<>();
+	private List<Expense> expenses = new ArrayList<>();
+
+	@OneToMany(mappedBy = "client")
+	@Builder.Default
+	private List<Income> incomes = new ArrayList<>();
+
+	@OneToMany(mappedBy = "client")
+	@Builder.Default
+	private List<Receipt> receipts = new ArrayList<>();
 }

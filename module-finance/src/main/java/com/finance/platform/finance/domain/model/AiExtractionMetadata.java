@@ -9,6 +9,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -23,33 +25,39 @@ import java.time.LocalDate;
 public class AiExtractionMetadata {
 
 	@Enumerated(EnumType.STRING)
-	@Column(length = 20)
+	@Column(name = "extraction_status", length = 20)
 	private ExtractionStatus extractionStatus;
 
-	@Column(precision = 5, scale = 4)
+	@Column(name = "confidence_score", precision = 5, scale = 4)
 	private BigDecimal confidenceScore;
 
-	@Column(length = 50)
+	@Column(name = "model_version", length = 50)
 	private String modelVersion;
 
+	@Column(name = "prompt_template_id", length = 50)
+	private String promptTemplateId;
+
 	@Enumerated(EnumType.STRING)
-	@Column(length = 10)
+	@Column(name = "suggested_type", length = 10)
 	private SuggestedTransactionType suggestedType;
 
-	@Column(length = 200)
+	@Column(name = "suggested_vendor_or_customer", length = 200)
 	private String suggestedVendorOrCustomer;
 
+	@Column(name = "suggested_date")
 	private LocalDate suggestedDate;
 
-	@Column(precision = 19, scale = 4)
+	@Column(name = "suggested_amount", precision = 19, scale = 4)
 	private BigDecimal suggestedAmount;
 
-	@Column(columnDefinition = "TEXT")
+	@Column(name = "ocr_text", columnDefinition = "TEXT")
 	private String ocrText;
 
-	@Column(columnDefinition = "jsonb")
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "raw_extraction_json", columnDefinition = "jsonb")
 	private String rawExtractionJson;
 
+	@Column(name = "ai_processed_at")
 	private Instant processedAt;
 
 	public enum ExtractionStatus {

@@ -3,6 +3,7 @@ package com.finance.platform.auth.api.impl;
 import com.finance.platform.auth.api.UserFacade;
 import com.finance.platform.auth.domain.model.Role;
 import com.finance.platform.auth.domain.model.User;
+import com.finance.platform.auth.infrastructure.persistence.UserClientAccessJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
 import com.finance.platform.core.exception.ResourceNotFoundException;
 import com.finance.platform.core.security.UserRole;
@@ -10,9 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class UserFacadeImpl implements UserFacade {
 
 	private final UserJpaRepository userRepository;
+	private final UserClientAccessJpaRepository clientAccessRepository;
 
 	@Override
 	public UserSummary getUser(UUID userId) {
@@ -30,8 +32,9 @@ public class UserFacadeImpl implements UserFacade {
 
 	@Override
 	public Set<UUID> getAccessibleClientIds(UUID userId) {
-		// TODO: resolve from user_client_access table
-		return Collections.emptySet();
+		return clientAccessRepository.findByUser_Id(userId).stream()
+				.map(access -> access.getClientId())
+				.collect(Collectors.toSet());
 	}
 
 	@Override
