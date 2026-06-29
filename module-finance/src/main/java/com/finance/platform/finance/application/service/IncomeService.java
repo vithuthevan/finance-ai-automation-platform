@@ -1,0 +1,164 @@
+package com.finance.platform.finance.application.service;
+
+import com.finance.platform.auth.domain.model.Role;
+import com.finance.platform.auth.domain.model.User;
+import com.finance.platform.auth.infrastructure.security.SecurityUser;
+import com.finance.platform.auth.infrastructure.security.SecurityUtils;
+import com.finance.platform.core.dto.PageResponse;
+import com.finance.platform.core.exception.BusinessException;
+import com.finance.platform.core.exception.ResourceNotFoundException;
+import com.finance.platform.finance.application.dto.IncomeRequest;
+import com.finance.platform.finance.application.dto.IncomeResponse;
+import com.finance.platform.finance.application.mapper.FinanceMapper;
+import com.finance.platform.finance.domain.model.Category;
+import com.finance.platform.finance.domain.model.Client;
+import com.finance.platform.finance.domain.model.Income;
+import com.finance.platform.finance.domain.model.TransactionSource;
+import com.finance.platform.finance.domain.model.TransactionStatus;
+import com.finance.platform.finance.infrastructure.persistence.CategoryJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.IncomeJpaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class IncomeService {
+
+	private final IncomeJpaRepository incomeRepository;
+	private final CategoryJpaRepository categoryRepository;
+	private final ClientAccessService clientAccessService;
+
+	@Transactional(readOnly = true)
+	public PageResponse<IncomeResponse> list(UUID clientId, TransactionStatus status, int page, int size) {
+		clientAccessService.requireAccessibleClient(clientId);
+		TransactionStatus effectiveStatus = resolveListStatus(status);
+
+		PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "transactionDate"));
+		Page<Income> results = effectiveStatus == null
+				? incomeRepository.findByClientId(clientId, pageable)
+				: incomeRepository.findByClientIdAndStatus(clientId, effectiveStatus, pageable);
+
+		return new PageResponse<>(
+				results.map(FinanceMapper::toIncomeResponse).getContent(),
+				results.getNumber(),
+				results.getSize(),
+				results.getTotalElements()
+		);
+	}
+
+	@Transactional(readOnly = true)
+	public IncomeResponse get(UUID clientId, UUID incomeId) {
+		clientAccessService.requireAccessibleClient(clientId);
+		return FinanceMapper.toIncomeResponse(findIncome(clientId, incomeId));
+	}
+
+	@Transactional
+	public IncomeResponse create(UUID clientId, IncomeRequest request) {
+		Client client = clientAccessService.requireAccessibleClient(clientId);
+		User currentUser = clientAccessService.requireCurrentUserEntity();
+		Category category = requireIncomeCategory(request.categoryId(), client.getFirmId());
+
+		Income income = Income.builder()
+				.client(client)
+				.category(category)
+				.transactionDate(request.transactionDate())
+				.amount(request.amount())
+				.currencyCode(request.currencyCode() != null ? request.currencyCode() : "LKR")
+				.customerName(request.customerName())
+				.description(request.description())
+				.taxAmount(request.taxAmount())
+				.referenceNo(request.referenceNo())
+				.status(TransactionStatus.DRAFT)
+				.source(TransactionSource.MANUAL)
+				.createdByUser(currentUser)
+				.build();
+		income.setFirmId(client.getFirmId());
+
+		return FinanceMapper.toIncomeResponse(incomeRepository.save(income));
+	}
+
+	@Transactional
+	public IncomeResponse update(UUID clientId, UUID incomeId, IncomeRequest request) {
+		Client client = clientAccessService.requireAccessibleClient(clientId);
+		Income income = findIncome(clientId, incomeId);
+		ensureDraft(income);
+
+		Category category = requireIncomeCategory(request.categoryId(), client.getFirmId());
+		income.setCategory(category);
+		income.setTransactionDate(request.transactionDate());
+		income.setAmount(request.amount());
+		income.setCurrencyCode(request.currencyCode() != null ? request.currencyCode() : "LKR");
+		income.setCustomerName(request.customerName());
+		income.setDescription(request.description());
+		income.setTaxAmount(request.taxAmount());
+		income.setReferenceNo(request.referenceNo());
+
+		return FinanceMapper.toIncomeResponse(incomeRepository.save(income));
+	}
+
+	@Transactional
+	public void delete(UUID clientId, UUID incomeId) {
+		clientAccessService.requireAccessibleClient(clientId);
+		Income income = findIncome(clientId, incomeId);
+		ensureDraft(income);
+		incomeRepository.delete(income);
+	}
+
+	@Transactional
+	public IncomeResponse approve(UUID clientId, UUID incomeId) {
+		clientAccessService.requireAccessibleClient(clientId);
+		assertCanApprove();
+		Income income = findIncome(clientId, incomeId);
+		income.approve(clientAccessService.requireCurrentUserEntity());
+		return FinanceMapper.toIncomeResponse(incomeRepository.save(income));
+	}
+
+	private Income findIncome(UUID clientId, UUID incomeId) {
+		Income income = incomeRepository.findByIdAndClientId(incomeId, clientId)
+				.orElseThrow(() -> new ResourceNotFoundException("Income", incomeId));
+		if (SecurityUtils.requireCurrentUser().getRole() == Role.RoleCode.AUDITOR
+				&& income.getStatus() != TransactionStatus.APPROVED) {
+			throw new BusinessException("Auditors can only view approved income");
+		}
+		return income;
+	}
+
+	private Category requireIncomeCategory(UUID categoryId, UUID firmId) {
+		Category category = categoryRepository.findByIdAndFirmId(categoryId, firmId)
+				.orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+		if (category.getCategoryType() == Category.CategoryType.EXPENSE) {
+			throw new BusinessException("Category is not valid for income");
+		}
+		return category;
+	}
+
+	private void ensureDraft(Income income) {
+		if (income.getStatus() != TransactionStatus.DRAFT) {
+			throw new BusinessException("Only draft income can be modified or deleted");
+		}
+	}
+
+	private void assertCanApprove() {
+		Role.RoleCode role = SecurityUtils.requireCurrentUser().getRole();
+		if (role != Role.RoleCode.ADMIN && role != Role.RoleCode.ACCOUNTANT) {
+			throw new BusinessException("Only administrators and accountants can approve income");
+		}
+	}
+
+	private TransactionStatus resolveListStatus(TransactionStatus requested) {
+		SecurityUser user = SecurityUtils.requireCurrentUser();
+		if (user.getRole() == Role.RoleCode.AUDITOR) {
+			return TransactionStatus.APPROVED;
+		}
+		if (user.getRole() == Role.RoleCode.BUSINESS_OWNER && requested == null) {
+			return TransactionStatus.APPROVED;
+		}
+		return requested;
+	}
+}
