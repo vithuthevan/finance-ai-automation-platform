@@ -1,1 +1,10 @@
 rootProject.name = 'finance-platform'
+
+include(
+    'platform-core',
+    'module-auth',
+    'module-finance',
+    'module-ai',
+    'module-reporting',
+    'platform-app'
+)
