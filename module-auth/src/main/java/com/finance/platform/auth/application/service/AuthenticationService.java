@@ -4,8 +4,6 @@ import com.finance.platform.auth.application.dto.LoginRequest;
 import com.finance.platform.auth.application.dto.LoginResponse;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
-import com.finance.platform.auth.infrastructure.security.JwtProperties;
-import com.finance.platform.auth.infrastructure.security.JwtTokenProvider;
 import com.finance.platform.core.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,8 +18,7 @@ public class AuthenticationService {
 
 	private final AuthenticationManager authenticationManager;
 	private final UserJpaRepository userRepository;
-	private final JwtTokenProvider jwtTokenProvider;
-	private final JwtProperties jwtProperties;
+	private final JwtService jwtService;
 
 	@Transactional(readOnly = true)
 	public LoginResponse login(LoginRequest request) {
@@ -40,17 +37,12 @@ public class AuthenticationService {
 	}
 
 	private LoginResponse buildLoginResponse(User user) {
-		String token = jwtTokenProvider.generateToken(
-				user.getId(),
-				user.getFirmId(),
-				user.getRole().getCode(),
-				user.getEmail()
-		);
+		JwtService.IssuedAccessToken issuedToken = jwtService.issueAccessToken(user);
 
 		return new LoginResponse(
-				token,
+				issuedToken.accessToken(),
 				"Bearer",
-				jwtProperties.expirationMs(),
+				issuedToken.expiresInMs(),
 				user.getId(),
 				user.getEmail(),
 				user.getFullName(),
