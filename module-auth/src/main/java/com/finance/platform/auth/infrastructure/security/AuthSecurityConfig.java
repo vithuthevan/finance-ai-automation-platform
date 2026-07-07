@@ -43,10 +43,16 @@ public class AuthSecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
 				.authorizeHttpRequests(auth -> auth
-						.requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register").permitAll()
-						.requestMatchers("/api/v1/health").permitAll()
-						.requestMatchers("/error").permitAll()
-						.anyRequest().authenticated()
+						.requestMatchers(HttpMethod.POST, SecurityPaths.AUTH_LOGIN, SecurityPaths.AUTH_REGISTER)
+						.permitAll()
+						.requestMatchers(SecurityPaths.HEALTH, "/error")
+						.permitAll()
+						.requestMatchers(SecurityPaths.EXPENSES)
+						.authenticated()
+						// Future URL-level role rules, e.g.:
+						// .requestMatchers(SecurityPaths.EXPENSES).hasAnyRole(SecurityRoles.ADMIN, SecurityRoles.ACCOUNTANT)
+						.anyRequest()
+						.authenticated()
 				)
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
