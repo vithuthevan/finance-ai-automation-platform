@@ -9,13 +9,14 @@ import com.finance.platform.auth.infrastructure.security.JwtTokenProvider;
 import com.finance.platform.core.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class AuthenticationService {
 
 	private final AuthenticationManager authenticationManager;
 	private final UserJpaRepository userRepository;
@@ -24,17 +25,21 @@ public class AuthService {
 
 	@Transactional(readOnly = true)
 	public LoginResponse login(LoginRequest request) {
-		authenticationManager.authenticate(
-				new UsernamePasswordAuthenticationToken(request.email(), request.password())
-		);
+		try {
+			authenticationManager.authenticate(
+					new UsernamePasswordAuthenticationToken(request.email(), request.password())
+			);
+		} catch (BadCredentialsException ex) {
+			throw new BusinessException("Invalid credentials");
+		}
 
 		User user = userRepository.findByEmailAndDeletedAtIsNull(request.email())
 				.orElseThrow(() -> new BusinessException("Invalid credentials"));
 
-		return buildAuthResponse(user);
+		return buildLoginResponse(user);
 	}
 
-	public LoginResponse buildAuthResponse(User user) {
+	private LoginResponse buildLoginResponse(User user) {
 		String token = jwtTokenProvider.generateToken(
 				user.getId(),
 				user.getFirmId(),
