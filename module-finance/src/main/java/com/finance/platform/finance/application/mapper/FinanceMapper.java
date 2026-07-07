@@ -25,7 +25,8 @@ public final class FinanceMapper {
 				expense.getStatus().name(),
 				expense.getSource().name(),
 				expense.getApprovedAt(),
-				expense.getCreatedAt()
+				expense.getCreatedAt(),
+				expense.getUpdatedAt()
 		);
 	}
 

@@ -7,7 +7,9 @@ import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.ResourceNotFoundException;
-import com.finance.platform.finance.application.dto.ExpenseRequest;
+import com.finance.platform.core.exception.ValidationException;
+import com.finance.platform.finance.application.dto.CreateExpenseRequest;
+import com.finance.platform.finance.application.dto.UpdateExpenseRequest;
 import com.finance.platform.finance.application.dto.ExpenseResponse;
 import com.finance.platform.finance.application.mapper.FinanceMapper;
 import com.finance.platform.finance.domain.model.Category;
@@ -24,6 +26,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -59,10 +62,11 @@ public class ExpenseService {
 	}
 
 	@Transactional
-	public ExpenseResponse create(UUID clientId, ExpenseRequest request) {
+	public ExpenseResponse create(UUID clientId, CreateExpenseRequest request) {
 		Client client = clientAccessService.requireAccessibleClient(clientId);
 		User currentUser = clientAccessService.requireCurrentUserEntity();
 		Category category = requireExpenseCategory(request.categoryId(), client.getFirmId());
+		validateAmounts(request.amount(), request.taxAmount());
 
 		Expense expense = Expense.builder()
 				.client(client)
@@ -84,12 +88,13 @@ public class ExpenseService {
 	}
 
 	@Transactional
-	public ExpenseResponse update(UUID clientId, UUID expenseId, ExpenseRequest request) {
+	public ExpenseResponse update(UUID clientId, UUID expenseId, UpdateExpenseRequest request) {
 		Client client = clientAccessService.requireAccessibleClient(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		ensureDraft(expense);
 
 		Category category = requireExpenseCategory(request.categoryId(), client.getFirmId());
+		validateAmounts(request.amount(), request.taxAmount());
 		expense.setCategory(category);
 		expense.setTransactionDate(request.transactionDate());
 		expense.setAmount(request.amount());
@@ -132,10 +137,22 @@ public class ExpenseService {
 	private Category requireExpenseCategory(UUID categoryId, UUID firmId) {
 		Category category = categoryRepository.findByIdAndFirmId(categoryId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
+		if (category.getDeletedAt() != null) {
+			throw new ResourceNotFoundException("Category", categoryId);
+		}
+		if (!category.isActive()) {
+			throw new ValidationException("categoryId", "Category is not active");
+		}
 		if (category.getCategoryType() == Category.CategoryType.INCOME) {
-			throw new BusinessException("Category is not valid for expenses");
+			throw new ValidationException("categoryId", "Category is not valid for expenses");
 		}
 		return category;
+	}
+
+	private void validateAmounts(BigDecimal amount, BigDecimal taxAmount) {
+		if (taxAmount != null && taxAmount.compareTo(amount) > 0) {
+			throw new ValidationException("taxAmount", "Tax amount cannot exceed expense amount");
+		}
 	}
 
 	private void ensureDraft(Expense expense) {

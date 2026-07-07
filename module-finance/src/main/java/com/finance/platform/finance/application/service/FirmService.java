@@ -1,6 +1,6 @@
 package com.finance.platform.finance.application.service;
 
-import com.finance.platform.core.exception.BusinessException;
+import com.finance.platform.core.exception.DuplicateResourceException;
 import com.finance.platform.finance.domain.model.Firm;
 import com.finance.platform.finance.infrastructure.persistence.FirmJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,7 @@ public class FirmService {
 	@Transactional
 	public Firm createFirm(String name, String registrationNo) {
 		if (firmRepository.existsByName(name)) {
-			throw new BusinessException("Firm name already exists");
+			throw new DuplicateResourceException("Firm", "name", name);
 		}
 
 		Firm firm = Firm.builder()

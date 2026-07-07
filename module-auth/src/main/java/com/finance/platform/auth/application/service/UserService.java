@@ -13,7 +13,9 @@ import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
 import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.exception.BusinessException;
+import com.finance.platform.core.exception.DuplicateResourceException;
 import com.finance.platform.core.exception.ResourceNotFoundException;
+import com.finance.platform.core.exception.ValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -69,11 +71,11 @@ public class UserService {
 			throw new BusinessException("Only administrators can create users");
 		}
 		if (userRepository.findByEmailAndDeletedAtIsNull(request.email()).isPresent()) {
-			throw new BusinessException("Email already registered");
+			throw new DuplicateResourceException("User", "email", request.email());
 		}
 
 		Role role = roleRepository.findByCode(parseRole(request.role()))
-				.orElseThrow(() -> new BusinessException("Invalid role: " + request.role()));
+				.orElseThrow(() -> new ValidationException("role", "Invalid role: " + request.role()));
 
 		User user = User.builder()
 				.role(role)
@@ -113,7 +115,7 @@ public class UserService {
 		try {
 			return Role.RoleCode.valueOf(role.toUpperCase());
 		} catch (IllegalArgumentException ex) {
-			throw new BusinessException("Invalid role: " + role);
+			throw new ValidationException("role", "Invalid role: " + role);
 		}
 	}
 

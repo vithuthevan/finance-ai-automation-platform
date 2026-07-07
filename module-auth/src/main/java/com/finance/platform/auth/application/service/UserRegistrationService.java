@@ -5,6 +5,7 @@ import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.RoleJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
 import com.finance.platform.core.exception.BusinessException;
+import com.finance.platform.core.exception.DuplicateResourceException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,7 +24,7 @@ public class UserRegistrationService {
 	@Transactional
 	public User registerAdmin(UUID firmId, String email, String rawPassword, String fullName) {
 		if (userRepository.findByEmailAndDeletedAtIsNull(email).isPresent()) {
-			throw new BusinessException("Email already registered");
+			throw new DuplicateResourceException("User", "email", email);
 		}
 
 		Role adminRole = roleRepository.findByCode(Role.RoleCode.ADMIN)

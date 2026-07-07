@@ -19,6 +19,7 @@ public record ExpenseResponse(
 		String status,
 		String source,
 		Instant approvedAt,
-		Instant createdAt
+		Instant createdAt,
+		Instant updatedAt
 ) {
 }

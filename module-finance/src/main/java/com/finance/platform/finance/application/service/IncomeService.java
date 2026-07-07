@@ -7,6 +7,7 @@ import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.ResourceNotFoundException;
+import com.finance.platform.core.exception.ValidationException;
 import com.finance.platform.finance.application.dto.IncomeRequest;
 import com.finance.platform.finance.application.dto.IncomeResponse;
 import com.finance.platform.finance.application.mapper.FinanceMapper;
@@ -133,7 +134,7 @@ public class IncomeService {
 		Category category = categoryRepository.findByIdAndFirmId(categoryId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
 		if (category.getCategoryType() == Category.CategoryType.EXPENSE) {
-			throw new BusinessException("Category is not valid for income");
+			throw new ValidationException("categoryId", "Category is not valid for income");
 		}
 		return category;
 	}

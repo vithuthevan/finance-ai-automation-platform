@@ -1,7 +1,8 @@
 package com.finance.platform.controller.finance;
 
 import com.finance.platform.core.dto.PageResponse;
-import com.finance.platform.finance.application.dto.ExpenseRequest;
+import com.finance.platform.finance.application.dto.CreateExpenseRequest;
+import com.finance.platform.finance.application.dto.UpdateExpenseRequest;
 import com.finance.platform.finance.application.dto.ExpenseResponse;
 import com.finance.platform.finance.application.service.ExpenseService;
 import com.finance.platform.finance.domain.model.TransactionStatus;
@@ -51,7 +52,7 @@ public class ExpenseController {
 	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
 	public ExpenseResponse create(
 			@PathVariable UUID clientId,
-			@Valid @RequestBody ExpenseRequest request
+			@Valid @RequestBody CreateExpenseRequest request
 	) {
 		return expenseService.create(clientId, request);
 	}
@@ -61,7 +62,7 @@ public class ExpenseController {
 	public ExpenseResponse update(
 			@PathVariable UUID clientId,
 			@PathVariable UUID expenseId,
-			@Valid @RequestBody ExpenseRequest request
+			@Valid @RequestBody UpdateExpenseRequest request
 	) {
 		return expenseService.update(clientId, expenseId, request);
 	}
