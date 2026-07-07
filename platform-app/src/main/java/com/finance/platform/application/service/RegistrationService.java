@@ -1,8 +1,8 @@
 package com.finance.platform.application.service;
 
-import com.finance.platform.auth.application.dto.LoginResponse;
 import com.finance.platform.auth.application.dto.RegisterRequest;
-import com.finance.platform.auth.application.service.AuthService;
+import com.finance.platform.auth.application.dto.RegisterResponse;
+import com.finance.platform.auth.application.service.UserRegistrationService;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.finance.application.service.FirmService;
 import com.finance.platform.finance.domain.model.Firm;
@@ -15,17 +15,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegistrationService {
 
 	private final FirmService firmService;
-	private final AuthService authService;
+	private final UserRegistrationService userRegistrationService;
 
 	@Transactional
-	public LoginResponse registerFirmAdmin(RegisterRequest request) {
+	public RegisterResponse register(RegisterRequest request) {
 		Firm firm = firmService.createFirm(request.firmName(), request.registrationNo());
-		User user = authService.registerAdmin(
+		User user = userRegistrationService.registerAdmin(
 				firm.getId(),
 				request.email(),
 				request.password(),
 				request.fullName()
 		);
-		return authService.buildAuthResponse(user);
+
+		return new RegisterResponse(
+				user.getId(),
+				firm.getId(),
+				firm.getName(),
+				user.getEmail(),
+				user.getFullName(),
+				user.getRole().getCode().name()
+		);
 	}
 }
