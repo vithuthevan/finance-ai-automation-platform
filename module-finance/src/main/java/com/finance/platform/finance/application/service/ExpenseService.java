@@ -4,6 +4,10 @@ import com.finance.platform.auth.domain.model.Role;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
+import com.finance.platform.core.audit.AuditAction;
+import com.finance.platform.core.audit.AuditEvent;
+import com.finance.platform.core.audit.AuditLogger;
+import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.ResourceNotFoundException;
@@ -27,6 +31,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -36,6 +42,7 @@ public class ExpenseService {
 	private final ExpenseJpaRepository expenseRepository;
 	private final CategoryJpaRepository categoryRepository;
 	private final ClientAccessService clientAccessService;
+	private final AuditLogger auditLogger;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ExpenseResponse> list(UUID clientId, TransactionStatus status, int page, int size) {
@@ -84,7 +91,16 @@ public class ExpenseService {
 				.build();
 		expense.setFirmId(client.getFirmId());
 
-		return FinanceMapper.toExpenseResponse(expenseRepository.save(expense));
+		Expense saved = expenseRepository.save(expense);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.EXPENSE_CREATED)
+				.resourceType(AuditResourceType.EXPENSE)
+				.resourceId(saved.getId())
+				.clientId(clientId)
+				.afterState(expenseSnapshot(saved))
+				.build());
+		return FinanceMapper.toExpenseResponse(saved);
 	}
 
 	@Transactional
@@ -92,6 +108,7 @@ public class ExpenseService {
 		Client client = clientAccessService.requireAccessibleClient(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		ensureDraft(expense);
+		Map<String, Object> before = expenseSnapshot(expense);
 
 		Category category = requireExpenseCategory(request.categoryId(), client.getFirmId());
 		validateAmounts(request.amount(), request.taxAmount());
@@ -104,7 +121,17 @@ public class ExpenseService {
 		expense.setTaxAmount(request.taxAmount());
 		expense.setReferenceNo(request.referenceNo());
 
-		return FinanceMapper.toExpenseResponse(expenseRepository.save(expense));
+		Expense saved = expenseRepository.save(expense);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.EXPENSE_UPDATED)
+				.resourceType(AuditResourceType.EXPENSE)
+				.resourceId(saved.getId())
+				.clientId(clientId)
+				.beforeState(before)
+				.afterState(expenseSnapshot(saved))
+				.build());
+		return FinanceMapper.toExpenseResponse(saved);
 	}
 
 	@Transactional
@@ -112,7 +139,18 @@ public class ExpenseService {
 		clientAccessService.requireAccessibleClient(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		ensureDraft(expense);
+		Map<String, Object> before = expenseSnapshot(expense);
+		UUID firmId = expense.getFirmId();
+		UUID id = expense.getId();
 		expenseRepository.delete(expense);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(firmId)
+				.action(AuditAction.EXPENSE_DELETED)
+				.resourceType(AuditResourceType.EXPENSE)
+				.resourceId(id)
+				.clientId(clientId)
+				.beforeState(before)
+				.build());
 	}
 
 	@Transactional
@@ -120,8 +158,19 @@ public class ExpenseService {
 		clientAccessService.requireAccessibleClient(clientId);
 		assertCanApprove();
 		Expense expense = findExpense(clientId, expenseId);
+		Map<String, Object> before = expenseSnapshot(expense);
 		expense.approve(clientAccessService.requireCurrentUserEntity());
-		return FinanceMapper.toExpenseResponse(expenseRepository.save(expense));
+		Expense saved = expenseRepository.save(expense);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.EXPENSE_APPROVED)
+				.resourceType(AuditResourceType.EXPENSE)
+				.resourceId(saved.getId())
+				.clientId(clientId)
+				.beforeState(before)
+				.afterState(expenseSnapshot(saved))
+				.build());
+		return FinanceMapper.toExpenseResponse(saved);
 	}
 
 	private Expense findExpense(UUID clientId, UUID expenseId) {
@@ -177,5 +226,20 @@ public class ExpenseService {
 			return TransactionStatus.APPROVED;
 		}
 		return requested;
+	}
+
+	private static Map<String, Object> expenseSnapshot(Expense expense) {
+		Map<String, Object> state = new LinkedHashMap<>();
+		state.put("amount", expense.getAmount());
+		state.put("currencyCode", expense.getCurrencyCode());
+		state.put("categoryId", expense.getCategory() != null ? expense.getCategory().getId() : null);
+		state.put("transactionDate", expense.getTransactionDate() != null
+				? expense.getTransactionDate().toString() : null);
+		state.put("vendorName", expense.getVendorName());
+		state.put("description", expense.getDescription());
+		state.put("taxAmount", expense.getTaxAmount());
+		state.put("referenceNo", expense.getReferenceNo());
+		state.put("status", expense.getStatus() != null ? expense.getStatus().name() : null);
+		return state;
 	}
 }

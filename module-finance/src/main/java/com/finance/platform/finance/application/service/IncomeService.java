@@ -4,6 +4,10 @@ import com.finance.platform.auth.domain.model.Role;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
+import com.finance.platform.core.audit.AuditAction;
+import com.finance.platform.core.audit.AuditEvent;
+import com.finance.platform.core.audit.AuditLogger;
+import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.ResourceNotFoundException;
@@ -25,6 +29,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -34,6 +40,7 @@ public class IncomeService {
 	private final IncomeJpaRepository incomeRepository;
 	private final CategoryJpaRepository categoryRepository;
 	private final ClientAccessService clientAccessService;
+	private final AuditLogger auditLogger;
 
 	@Transactional(readOnly = true)
 	public PageResponse<IncomeResponse> list(UUID clientId, TransactionStatus status, int page, int size) {
@@ -73,6 +80,7 @@ public class IncomeService {
 				.currencyCode(request.currencyCode() != null ? request.currencyCode() : "LKR")
 				.customerName(request.customerName())
 				.description(request.description())
+				.paymentMethod(request.paymentMethod())
 				.taxAmount(request.taxAmount())
 				.referenceNo(request.referenceNo())
 				.status(TransactionStatus.DRAFT)
@@ -81,7 +89,16 @@ public class IncomeService {
 				.build();
 		income.setFirmId(client.getFirmId());
 
-		return FinanceMapper.toIncomeResponse(incomeRepository.save(income));
+		Income saved = incomeRepository.save(income);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.INCOME_CREATED)
+				.resourceType(AuditResourceType.INCOME)
+				.resourceId(saved.getId())
+				.clientId(clientId)
+				.afterState(incomeSnapshot(saved))
+				.build());
+		return FinanceMapper.toIncomeResponse(saved);
 	}
 
 	@Transactional
@@ -89,6 +106,7 @@ public class IncomeService {
 		Client client = clientAccessService.requireAccessibleClient(clientId);
 		Income income = findIncome(clientId, incomeId);
 		ensureDraft(income);
+		Map<String, Object> before = incomeSnapshot(income);
 
 		Category category = requireIncomeCategory(request.categoryId(), client.getFirmId());
 		income.setCategory(category);
@@ -97,10 +115,21 @@ public class IncomeService {
 		income.setCurrencyCode(request.currencyCode() != null ? request.currencyCode() : "LKR");
 		income.setCustomerName(request.customerName());
 		income.setDescription(request.description());
+		income.setPaymentMethod(request.paymentMethod());
 		income.setTaxAmount(request.taxAmount());
 		income.setReferenceNo(request.referenceNo());
 
-		return FinanceMapper.toIncomeResponse(incomeRepository.save(income));
+		Income saved = incomeRepository.save(income);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.INCOME_UPDATED)
+				.resourceType(AuditResourceType.INCOME)
+				.resourceId(saved.getId())
+				.clientId(clientId)
+				.beforeState(before)
+				.afterState(incomeSnapshot(saved))
+				.build());
+		return FinanceMapper.toIncomeResponse(saved);
 	}
 
 	@Transactional
@@ -108,7 +137,18 @@ public class IncomeService {
 		clientAccessService.requireAccessibleClient(clientId);
 		Income income = findIncome(clientId, incomeId);
 		ensureDraft(income);
+		Map<String, Object> before = incomeSnapshot(income);
+		UUID firmId = income.getFirmId();
+		UUID id = income.getId();
 		incomeRepository.delete(income);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(firmId)
+				.action(AuditAction.INCOME_DELETED)
+				.resourceType(AuditResourceType.INCOME)
+				.resourceId(id)
+				.clientId(clientId)
+				.beforeState(before)
+				.build());
 	}
 
 	@Transactional
@@ -116,8 +156,22 @@ public class IncomeService {
 		clientAccessService.requireAccessibleClient(clientId);
 		assertCanApprove();
 		Income income = findIncome(clientId, incomeId);
+		if (income.getPaymentMethod() == null) {
+			throw new ValidationException("paymentMethod", "Payment method is required before approving income");
+		}
+		Map<String, Object> before = incomeSnapshot(income);
 		income.approve(clientAccessService.requireCurrentUserEntity());
-		return FinanceMapper.toIncomeResponse(incomeRepository.save(income));
+		Income saved = incomeRepository.save(income);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.INCOME_APPROVED)
+				.resourceType(AuditResourceType.INCOME)
+				.resourceId(saved.getId())
+				.clientId(clientId)
+				.beforeState(before)
+				.afterState(incomeSnapshot(saved))
+				.build());
+		return FinanceMapper.toIncomeResponse(saved);
 	}
 
 	private Income findIncome(UUID clientId, UUID incomeId) {
@@ -161,5 +215,21 @@ public class IncomeService {
 			return TransactionStatus.APPROVED;
 		}
 		return requested;
+	}
+
+	private static Map<String, Object> incomeSnapshot(Income income) {
+		Map<String, Object> state = new LinkedHashMap<>();
+		state.put("amount", income.getAmount());
+		state.put("currencyCode", income.getCurrencyCode());
+		state.put("categoryId", income.getCategory() != null ? income.getCategory().getId() : null);
+		state.put("transactionDate", income.getTransactionDate() != null
+				? income.getTransactionDate().toString() : null);
+		state.put("customerName", income.getCustomerName());
+		state.put("description", income.getDescription());
+		state.put("paymentMethod", income.getPaymentMethod() != null ? income.getPaymentMethod().name() : null);
+		state.put("taxAmount", income.getTaxAmount());
+		state.put("referenceNo", income.getReferenceNo());
+		state.put("status", income.getStatus() != null ? income.getStatus().name() : null);
+		return state;
 	}
 }

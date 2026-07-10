@@ -12,6 +12,10 @@ import com.finance.platform.auth.infrastructure.persistence.UserClientAccessJpaR
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
 import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
+import com.finance.platform.core.audit.AuditAction;
+import com.finance.platform.core.audit.AuditEvent;
+import com.finance.platform.core.audit.AuditLogger;
+import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.DuplicateResourceException;
 import com.finance.platform.core.exception.ResourceNotFoundException;
@@ -21,7 +25,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,6 +39,7 @@ public class UserService {
 	private final UserClientAccessJpaRepository clientAccessRepository;
 	private final UserFacade userFacade;
 	private final PasswordEncoder passwordEncoder;
+	private final AuditLogger auditLogger;
 
 	@Transactional(readOnly = true)
 	public UserProfileResponse getProfile() {
@@ -96,6 +103,21 @@ public class UserService {
 				clientAccessRepository.save(access);
 			}
 		}
+
+		Map<String, Object> after = new LinkedHashMap<>();
+		after.put("email", user.getEmail());
+		after.put("fullName", user.getFullName());
+		after.put("role", user.getRole().getCode().name());
+		after.put("active", user.isActive());
+		after.put("clientIds", request.clientIds());
+
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(user.getFirmId())
+				.action(AuditAction.USER_CREATED)
+				.resourceType(AuditResourceType.USER)
+				.resourceId(user.getId())
+				.afterState(after)
+				.build());
 
 		return toResponse(user);
 	}
