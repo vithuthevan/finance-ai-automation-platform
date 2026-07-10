@@ -1,0 +1,679 @@
+{
+  "info": {
+    "name": "Finance Platform — Income API",
+    "description": "Postman tests for Create, Update, Delete, Retrieve Income, plus validation failures.\n\n## Setup\n1. Set collection variables: `baseUrl`, `email`, `password`\n2. Run **Auth → Login** first (saves `accessToken`)\n3. Set `clientId` and `categoryId` (INCOME or BOTH category for the firm)\n4. Run Create Income to populate `incomeId` for update/delete/retrieve tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
+    { "key": "clientId", "value": "{{CLIENT_UUID}}" },
+    { "key": "categoryId", "value": "{{INCOME_CATEGORY_UUID}}" },
+    { "key": "incomeId", "value": "" },
+    { "key": "email", "value": "admin@example.com" },
+    { "key": "password", "value": "yourpassword" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Returns accessToken', () => pm.expect(body.accessToken).to.be.a('string').and.not.empty);",
+                  "if (body.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "description": "Obtain JWT. Expected 200 with accessToken, tokenType=Bearer, role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Income",
+      "item": [
+        {
+          "name": "Create Income — minimal (happy path)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has id', () => pm.expect(body.id).to.be.a('string'));",
+                  "pm.test('Status is DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+                  "pm.test('Source is MANUAL', () => pm.expect(body.source).to.eql('MANUAL'));",
+                  "pm.test('Currency defaults to LKR', () => pm.expect(body.currencyCode).to.eql('LKR'));",
+                  "pm.test('clientId matches', () => pm.expect(body.clientId).to.eql(pm.collectionVariables.get('clientId')));",
+                  "pm.test('amount matches', () => pm.expect(Number(body.amount)).to.eql(1500));",
+                  "if (body.id) { pm.collectionVariables.set('incomeId', body.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 1500.00,\n  \"customerName\": \"Acme Corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Creates DRAFT income. Omitting currencyCode defaults to LKR."
+          }
+        },
+        {
+          "name": "Create Income — full payload",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('paymentMethod set', () => pm.expect(body.paymentMethod).to.eql('BANK_TRANSFER'));",
+                  "pm.test('referenceNo set', () => pm.expect(body.referenceNo).to.eql('INV-2026-0042'));",
+                  "pm.test('taxAmount set', () => pm.expect(Number(body.taxAmount)).to.eql(3750.08));",
+                  "pm.test('Status is DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+                  "if (body.id) { pm.collectionVariables.set('incomeId', body.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 25000.50,\n  \"currencyCode\": \"LKR\",\n  \"customerName\": \"Acme Corp\",\n  \"description\": \"Consulting services Q3\",\n  \"paymentMethod\": \"BANK_TRANSFER\",\n  \"taxAmount\": 3750.08,\n  \"referenceNo\": \"INV-2026-0042\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Full create with optional fields. paymentMethod: BANK_TRANSFER | CASH | CARD | CHEQUE | ONLINE | OTHER."
+          }
+        },
+        {
+          "name": "Create Income — without auth",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "const body = pm.response.json();",
+                  "pm.test('Unauthorized title', () => pm.expect(body.title).to.eql('Unauthorized'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"No Auth\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Missing JWT → 401 Unauthorized."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Retrieve Income",
+      "item": [
+        {
+          "name": "Get Income by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('id matches', () => pm.expect(body.id).to.eql(pm.collectionVariables.get('incomeId')));",
+                  "pm.test('Has required fields', () => {",
+                  "  pm.expect(body).to.include.keys('clientId','categoryId','transactionDate','amount','currencyCode','customerName','status','source','createdAt','updatedAt');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{incomeId}}",
+            "description": "Retrieve single income. Requires incomeId from Create."
+          }
+        },
+        {
+          "name": "List Income (paginated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('PageResponse shape', () => {",
+                  "  pm.expect(body).to.have.keys('content','page','size','totalElements');",
+                  "  pm.expect(body.content).to.be.an('array');",
+                  "});",
+                  "pm.test('page/size match query', () => {",
+                  "  pm.expect(body.page).to.eql(0);",
+                  "  pm.expect(body.size).to.eql(20);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/clients/{{clientId}}/income?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "clients", "{{clientId}}", "income"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "status", "value": "DRAFT", "disabled": true, "description": "Optional: DRAFT | APPROVED | VOID" }
+              ]
+            },
+            "description": "Paginated list sorted by transactionDate DESC. Optional status filter."
+          }
+        },
+        {
+          "name": "Get Income — not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('ProblemDetail title', () => pm.expect(body.title).to.eql('Resource Not Found'));",
+                  "pm.test('detail mentions Income', () => pm.expect(body.detail).to.include('Income not found'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/00000000-0000-0000-0000-000000000099",
+            "description": "Unknown incomeId → 404 Resource Not Found."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Update Income",
+      "item": [
+        {
+          "name": "Update Income — DRAFT (happy path)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('amount updated', () => pm.expect(Number(body.amount)).to.eql(26000));",
+                  "pm.test('customerName updated', () => pm.expect(body.customerName).to.eql('Acme Corp (revised)'));",
+                  "pm.test('paymentMethod updated', () => pm.expect(body.paymentMethod).to.eql('CARD'));",
+                  "pm.test('Still DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+                  "pm.test('id unchanged', () => pm.expect(body.id).to.eql(pm.collectionVariables.get('incomeId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-11\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 26000.00,\n  \"currencyCode\": \"LKR\",\n  \"customerName\": \"Acme Corp (revised)\",\n  \"description\": \"Updated scope\",\n  \"paymentMethod\": \"CARD\",\n  \"taxAmount\": 3900.00,\n  \"referenceNo\": \"INV-2026-0042\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{incomeId}}",
+            "description": "Only DRAFT income can be updated. Same body shape as create."
+          }
+        },
+        {
+          "name": "Update Income — not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('Resource Not Found', () => pm.expect(body.title).to.eql('Resource Not Found'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-11\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"Ghost\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/00000000-0000-0000-0000-000000000099",
+            "description": "Unknown incomeId → 404."
+          }
+        },
+        {
+          "name": "Update Income — APPROVED (business rule)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test('Business Rule Violation', () => pm.expect(body.title).to.eql('Business Rule Violation'));",
+                  "pm.test('Only draft message', () => pm.expect(body.detail).to.include('Only draft income'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-11\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"Should Fail\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{APPROVED_INCOME_ID}}",
+            "description": "Replace APPROVED_INCOME_ID with an approved income UUID. Expected 422 — only DRAFT can be modified."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delete Income",
+      "item": [
+        {
+          "name": "Delete Income — DRAFT (happy path)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));",
+                  "pm.test('Empty body', () => pm.expect(pm.response.text()).to.be.oneOf(['', null]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{incomeId}}",
+            "description": "Hard-deletes DRAFT income. Returns 204 No Content. Run Create first so incomeId exists."
+          }
+        },
+        {
+          "name": "Delete Income — already deleted / not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('Resource Not Found', () => pm.expect(body.title).to.eql('Resource Not Found'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{incomeId}}",
+            "description": "Re-delete same id after happy-path delete → 404."
+          }
+        },
+        {
+          "name": "Delete Income — APPROVED (business rule)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 422', () => pm.response.to.have.status(422));",
+                  "const body = pm.response.json();",
+                  "pm.test('Business Rule Violation', () => pm.expect(body.title).to.eql('Business Rule Violation'));",
+                  "pm.test('Only draft message', () => pm.expect(body.detail).to.include('Only draft income'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{APPROVED_INCOME_ID}}",
+            "description": "Replace APPROVED_INCOME_ID. Expected 422 — only DRAFT can be deleted."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation Failures",
+      "item": [
+        {
+          "name": "Missing required fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('Validation Failed', () => pm.expect(body.title).to.eql('Validation Failed'));",
+                  "pm.test('Has errors map', () => pm.expect(body.errors).to.be.an('object'));",
+                  "pm.test('transactionDate error', () => pm.expect(body.errors).to.have.property('transactionDate'));",
+                  "pm.test('categoryId error', () => pm.expect(body.errors).to.have.property('categoryId'));",
+                  "pm.test('amount error', () => pm.expect(body.errors).to.have.property('amount'));",
+                  "pm.test('customerName error', () => pm.expect(body.errors).to.have.property('customerName'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Empty body → 400 with field errors for transactionDate, categoryId, amount, customerName."
+          }
+        },
+        {
+          "name": "Amount below minimum (0)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('amount error', () => {",
+                  "  pm.expect(body.errors).to.have.property('amount');",
+                  "  pm.expect(body.errors.amount.toLowerCase()).to.include('0.01');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 0,\n  \"customerName\": \"Acme Corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "amount must be >= 0.01 → 400."
+          }
+        },
+        {
+          "name": "Blank customerName",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('customerName error', () => pm.expect(body.errors).to.have.property('customerName'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"   \"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "@NotBlank rejects whitespace-only customerName → 400."
+          }
+        },
+        {
+          "name": "customerName too long (>200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('customerName size error', () => pm.expect(body.errors).to.have.property('customerName'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "customerName max 200 chars → 400."
+          }
+        },
+        {
+          "name": "currencyCode too long (>3)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('currencyCode error', () => pm.expect(body.errors).to.have.property('currencyCode'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"currencyCode\": \"LKRS\",\n  \"customerName\": \"Acme Corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "currencyCode @Size(max=3) → 400."
+          }
+        },
+        {
+          "name": "referenceNo too long (>100)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('referenceNo error', () => pm.expect(body.errors).to.have.property('referenceNo'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"Acme Corp\",\n  \"referenceNo\": \"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "referenceNo max 100 chars → 400."
+          }
+        },
+        {
+          "name": "Invalid paymentMethod enum",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"Acme Corp\",\n  \"paymentMethod\": \"BITCOIN\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Invalid enum → 400 (Jackson deserialization / type mismatch)."
+          }
+        },
+        {
+          "name": "Category not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('Category not found', () => {",
+                  "  pm.expect(body.title).to.eql('Resource Not Found');",
+                  "  pm.expect(body.detail).to.include('Category not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"00000000-0000-0000-0000-000000000088\",\n  \"amount\": 100.00,\n  \"customerName\": \"Acme Corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Unknown categoryId → 404 Category not found."
+          }
+        },
+        {
+          "name": "EXPENSE-only category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('Validation Failed', () => pm.expect(body.title).to.eql('Validation Failed'));",
+                  "pm.test('categoryId field error', () => {",
+                  "  pm.expect(body.errors).to.have.property('categoryId');",
+                  "  pm.expect(body.errors.categoryId).to.include('not valid for income');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-10\",\n  \"categoryId\": \"{{EXPENSE_CATEGORY_UUID}}\",\n  \"amount\": 100.00,\n  \"customerName\": \"Acme Corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income",
+            "description": "Set EXPENSE_CATEGORY_UUID to an EXPENSE-only category. Expected 400 with errors.categoryId."
+          }
+        },
+        {
+          "name": "Update with invalid amount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('amount error', () => pm.expect(body.errors).to.have.property('amount'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionDate\": \"2026-07-11\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"amount\": -5,\n  \"customerName\": \"Acme Corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/clients/{{clientId}}/income/{{incomeId}}",
+            "description": "Negative amount on update → 400. Create a DRAFT income first."
+          }
+        }
+      ]
+    }
+  ]
+}
