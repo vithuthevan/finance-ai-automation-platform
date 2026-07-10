@@ -69,6 +69,10 @@ public class Income extends TenantAwareEntity {
 	private String referenceNo;
 
 	@Enumerated(EnumType.STRING)
+	@Column(name = "payment_method", length = 20)
+	private PaymentMethod paymentMethod;
+
+	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	@Builder.Default
 	private TransactionStatus status = TransactionStatus.DRAFT;

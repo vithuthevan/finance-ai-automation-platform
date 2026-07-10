@@ -1,5 +1,6 @@
 package com.finance.platform.finance.application.dto;
 
+import com.finance.platform.finance.domain.model.PaymentMethod;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -16,6 +17,7 @@ public record IncomeRequest(
 		@Size(max = 3) String currencyCode,
 		@NotBlank @Size(max = 200) String customerName,
 		String description,
+		PaymentMethod paymentMethod,
 		BigDecimal taxAmount,
 		@Size(max = 100) String referenceNo
 ) {

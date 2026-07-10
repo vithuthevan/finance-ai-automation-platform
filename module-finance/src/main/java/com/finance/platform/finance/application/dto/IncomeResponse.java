@@ -14,11 +14,14 @@ public record IncomeResponse(
 		String currencyCode,
 		String customerName,
 		String description,
+		String paymentMethod,
 		BigDecimal taxAmount,
 		String referenceNo,
 		String status,
 		String source,
+		UUID createdByUserId,
 		Instant approvedAt,
-		Instant createdAt
+		Instant createdAt,
+		Instant updatedAt
 ) {
 }

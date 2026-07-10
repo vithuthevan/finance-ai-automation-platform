@@ -40,12 +40,15 @@ public final class FinanceMapper {
 				income.getCurrencyCode(),
 				income.getCustomerName(),
 				income.getDescription(),
+				income.getPaymentMethod() != null ? income.getPaymentMethod().name() : null,
 				income.getTaxAmount(),
 				income.getReferenceNo(),
 				income.getStatus().name(),
 				income.getSource().name(),
+				income.getCreatedByUser() != null ? income.getCreatedByUser().getId() : null,
 				income.getApprovedAt(),
-				income.getCreatedAt()
+				income.getCreatedAt(),
+				income.getUpdatedAt()
 		);
 	}
 }
