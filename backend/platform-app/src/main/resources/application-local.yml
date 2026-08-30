@@ -1,0 +1,22 @@
+# Safe local defaults only. Production uses application-prod.yml + environment variables.
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/finance_platform}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:Zm9yLWRldmVsb3BtZW50LXVzZS1hLXN0cm9uZy1iYXNlNjQtZW5jb2RlZC1zZWNyZXQta2V5}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  storage:
+    provider: ${APP_STORAGE_PROVIDER:${STORAGE_PROVIDER:local}}
+    local:
+      root: ${APP_STORAGE_LOCAL_ROOT:${STORAGE_LOCAL_PATH:./data/storage}}

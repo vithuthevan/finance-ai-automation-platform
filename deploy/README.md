@@ -1,0 +1,39 @@
+# Deployment
+
+Provider-neutral. The repository is not wired to a single cloud.
+
+## Model A — same domain
+
+```
+https://finance.example.com/        → Angular (this nginx)
+https://finance.example.com/api/*   → Spring Boot
+```
+
+Use `nginx/same-origin.conf`. Frontend `assets/config.json` stays:
+
+```json
+{ "apiBaseUrl": "/api/v1" }
+```
+
+CORS can be empty because the browser origin matches the API.
+
+## Model B — separate hosts
+
+```
+https://app.example.com   → Angular
+https://api.example.com   → Spring Boot
+```
+
+Use `nginx/frontend-only.conf` (or S3/CloudFront/Pages). Set:
+
+```json
+{ "apiBaseUrl": "https://api.example.com/api/v1" }
+```
+
+and `APP_CORS_ALLOWED_ORIGINS=https://app.example.com`.
+
+Do not use `*` with credentialed JWT requests.
+
+## TLS
+
+Terminate HTTPS at Nginx, AWS ALB, Cloudflare, or the host platform. The backend uses `server.forward-headers-strategy=framework` so `X-Forwarded-Proto` is honored.

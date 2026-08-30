@@ -1,0 +1,23 @@
+# Production profile. Unresolved placeholders fail startup — no secret fallbacks.
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
+  storage:
+    provider: ${APP_STORAGE_PROVIDER:${STORAGE_PROVIDER:s3}}
+    max-file-size-mb: ${DOCUMENT_MAX_FILE_SIZE_MB:0}
+    local:
+      root: ${APP_STORAGE_LOCAL_ROOT:${STORAGE_LOCAL_PATH:/data/uploads}}

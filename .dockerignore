@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+backend
+docs
+postman
+.env
+**/.gradle
+**/build
+**/node_modules
+**/dist
+**/*.log

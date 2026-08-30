@@ -1,0 +1,6 @@
+dependencies {
+	implementation project(':platform-core')
+	implementation project(':module-finance')
+	implementation 'org.springframework.boot:spring-boot-starter'
+	implementation 'org.springframework.boot:spring-boot-starter-json'
+}

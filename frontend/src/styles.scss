@@ -1,0 +1,93 @@
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f4f6f8;
+  color: #1f2933;
+}
+
+.page {
+  padding: 16px 20px 32px;
+  max-width: 1280px;
+}
+
+.page h1 {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.toolbar-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  padding: 16px;
+}
+
+.metric-card .label {
+  color: #52606d;
+  font-size: 13px;
+}
+
+.metric-card .value {
+  font-size: 24px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.status-DRAFT { color: #b45309; font-weight: 600; }
+.status-APPROVED { color: #047857; font-weight: 600; }
+.status-VOID { color: #9b1c1c; font-weight: 600; }
+.status-CLOSED { color: #334155; font-weight: 600; }
+.status-NEEDS_REVIEW { color: #b45309; font-weight: 600; }
+.status-UPLOADED { color: #1d4ed8; font-weight: 600; }
+.status-LINKED { color: #047857; font-weight: 600; }
+.status-REJECTED { color: #9b1c1c; font-weight: 600; }
+.status-FAILED { color: #9b1c1c; font-weight: 600; }
+
+.full-width { width: 100%; }
+
+.card-block {
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.hint { color: #52606d; }
+
+.doc-review {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr);
+  gap: 20px;
+}
+
+.preview-pane {
+  background: #fff;
+  min-height: 480px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-image, .preview-frame {
+  width: 100%;
+  min-height: 480px;
+  border: 0;
+}
+
+@media (max-width: 900px) {
+  .doc-review { grid-template-columns: 1fr; }
+}

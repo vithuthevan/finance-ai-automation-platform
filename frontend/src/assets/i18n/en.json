@@ -1,0 +1,11 @@
+{
+  "appName": "Finance Platform",
+  "nav.dashboard": "Dashboard",
+  "nav.clients": "Clients",
+  "nav.documents": "Documents",
+  "nav.transactions": "Transactions",
+  "nav.banking": "Banking",
+  "nav.close": "Close",
+  "nav.reports": "Reports",
+  "nav.admin": "Administration"
+}
