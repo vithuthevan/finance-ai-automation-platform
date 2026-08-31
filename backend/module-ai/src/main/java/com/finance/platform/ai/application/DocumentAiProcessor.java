@@ -1,22 +1,26 @@
 package com.finance.platform.ai.application;
 
 import com.finance.platform.ai.config.AiProperties;
-import com.finance.platform.ai.provider.DisabledAiProvider;
+import com.finance.platform.ai.provider.MockExtractionProvider;
 import com.finance.platform.ai.provider.OpenAiCompatibleExtractionProvider;
+import com.finance.platform.core.exception.ErrorCodes;
 import com.finance.platform.core.storage.FileStorageService;
 import com.finance.platform.finance.application.service.CategorySuggestionService;
-import com.finance.platform.finance.domain.model.AiExtractionMetadata;
 import com.finance.platform.finance.domain.model.Category;
+import com.finance.platform.finance.domain.model.Firm;
 import com.finance.platform.finance.domain.model.Receipt;
+import com.finance.platform.finance.infrastructure.persistence.CategoryJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.FirmJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ReceiptJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -24,94 +28,97 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DocumentAiProcessor {
 
+	private static final Set<Receipt.DocumentType> EXTRACTABLE = Set.of(
+			Receipt.DocumentType.RECEIPT,
+			Receipt.DocumentType.INVOICE,
+			Receipt.DocumentType.PURCHASE_INVOICE,
+			Receipt.DocumentType.SALES_INVOICE,
+			Receipt.DocumentType.CREDIT_NOTE
+	);
+
 	private final AiProperties aiProperties;
-	private final DisabledAiProvider disabledAiProvider;
 	private final OpenAiCompatibleExtractionProvider openAiProvider;
+	private final MockExtractionProvider mockExtractionProvider;
+	private final AccountingSuggestionService accountingSuggestionService;
+	private final DocumentAiPersistenceService persistenceService;
 	private final ReceiptJpaRepository receiptRepository;
+	private final FirmJpaRepository firmRepository;
+	private final CategoryJpaRepository categoryRepository;
 	private final FileStorageService fileStorageService;
 	private final CategorySuggestionService categorySuggestionService;
 
-	@Transactional
 	public void process(UUID receiptId) {
-		Receipt receipt = receiptRepository.findById(receiptId).orElse(null);
-		if (receipt == null || receipt.getDeletedAt() != null) {
+		Receipt loaded = receiptRepository.findDetailedById(receiptId).orElse(null);
+		if (loaded == null || loaded.getDeletedAt() != null) {
 			return;
 		}
-		if (receipt.getStatus() == Receipt.ReceiptStatus.LINKED
-				|| receipt.getStatus() == Receipt.ReceiptStatus.REJECTED) {
+		if (loaded.getStatus() == Receipt.ReceiptStatus.LINKED || loaded.getStatus() == Receipt.ReceiptStatus.REJECTED) {
 			return;
 		}
-		AiExtractionMetadata metadata = receipt.getAiMetadata() != null ? receipt.getAiMetadata() : new AiExtractionMetadata();
-		DocumentExtractionService extractor = aiProperties.isProviderConfigured() ? openAiProvider : disabledAiProvider;
-		if (!extractor.isEnabled()) {
-			metadata.setExtractionStatus(AiExtractionMetadata.ExtractionStatus.AI_DISABLED);
-			metadata.setProcessedAt(Instant.now());
-			if (receipt.getStatus() != Receipt.ReceiptStatus.LINKED
-					&& receipt.getStatus() != Receipt.ReceiptStatus.REJECTED) {
-				receipt.setStatus(Receipt.ReceiptStatus.NEEDS_REVIEW);
-			}
-			receipt.setAiMetadata(metadata);
-			receiptRepository.save(receipt);
+		int attemptNo = persistenceService.markProcessing(receiptId);
+		if (attemptNo < 0) {
 			return;
 		}
-		receipt.setStatus(Receipt.ReceiptStatus.PROCESSING);
-		metadata.setExtractionStatus(AiExtractionMetadata.ExtractionStatus.PROCESSING);
-		receipt.setAiMetadata(metadata);
-		receiptRepository.save(receipt);
-
+		Instant started = Instant.now();
+		log.info("processing started documentId={} attempt={}", receiptId, attemptNo);
 		try {
-			byte[] content = readAll(fileStorageService.open(receipt.getStorageKey()));
-			Optional<ExtractedDocument> extracted = extractor.extract(content, receipt.getFileName(), receipt.getMimeType());
-			if (extracted.isEmpty()) {
-				metadata.setExtractionStatus(AiExtractionMetadata.ExtractionStatus.FAILED);
-				receipt.setStatus(Receipt.ReceiptStatus.NEEDS_REVIEW);
-				receipt.setAiMetadata(metadata);
-				receiptRepository.save(receipt);
+			Receipt receipt = receiptRepository.findDetailedById(receiptId).orElseThrow();
+			if (!EXTRACTABLE.contains(receipt.getDocumentType())) {
+				persistenceService.completeSkipped(receiptId, attemptNo, started, ErrorCodes.EXTRACTION_NOT_AVAILABLE,
+						"Automatic extraction is not used for this document type");
 				return;
 			}
-			applyExtraction(receipt, metadata, extracted.get());
-			receipt.setStatus(Receipt.ReceiptStatus.NEEDS_REVIEW);
-			receiptRepository.save(receipt);
+			if (!firmAiEnabled(receipt.getFirmId()) || !aiProperties.isExtractionEnabled()) {
+				persistenceService.completeDisabled(receiptId, attemptNo, started);
+				return;
+			}
+			DocumentExtractionService extractor = aiProperties.isMockExtraction() ? mockExtractionProvider : openAiProvider;
+			byte[] content = readAll(fileStorageService.open(receipt.getStorageKey()));
+			Optional<ExtractedDocument> extracted = extractor instanceof OpenAiCompatibleExtractionProvider openAi
+					? openAi.extract(content, receipt.getFileName(), receipt.getMimeType(),
+					receipt.getDocumentType() != null ? receipt.getDocumentType().name() : null)
+					: extractor.extract(content, receipt.getFileName(), receipt.getMimeType());
+			if (extracted.isEmpty() || isHardFailure(extracted.get())) {
+				String code = extracted.map(ExtractedDocument::failureCode).orElse(ErrorCodes.DOCUMENT_PROCESSING_FAILED);
+				persistenceService.fail(receiptId, attemptNo, started, code,
+						"Automatic extraction failed. Enter the transaction manually.");
+				return;
+			}
+			ExtractedDocument facts = extracted.get();
+			log.info("OCR completed documentId={} provider={}", receiptId, aiProperties.effectiveExtractionProvider());
+			UUID clientId = receipt.getClient() != null ? receipt.getClient().getId() : null;
+			List<Category> categories = categoryRepository.findAllByFirmIdAndDeletedAtIsNull(receipt.getFirmId()).stream()
+					.filter(Category::isActive)
+					.filter(category -> category.getClient() == null || category.getClient().getId().equals(clientId))
+					.toList();
+			Category historical = historicalCategory(receipt.getFirmId(), clientId, facts);
+			AccountingSuggestion suggestion = accountingSuggestionService.suggest(facts, categories, historical);
+			persistenceService.applySuccess(receiptId, facts, suggestion, attemptNo, started);
+			log.info("suggestion completed documentId={} type={} category={}",
+					receiptId, suggestion.transactionType(), suggestion.suggestedCategoryCode());
 		} catch (Exception ex) {
-			log.warn("Document AI processing failed for {}: {}", receiptId, ex.getMessage());
-			metadata.setExtractionStatus(AiExtractionMetadata.ExtractionStatus.FAILED);
-			receipt.setStatus(Receipt.ReceiptStatus.FAILED);
-			receipt.setAiMetadata(metadata);
-			receiptRepository.save(receipt);
+			log.warn("processing failed documentId={} reason={}", receiptId, ex.getMessage());
+			persistenceService.fail(receiptId, attemptNo, started, ErrorCodes.DOCUMENT_PROCESSING_FAILED,
+					"Automatic extraction failed. Enter the transaction manually.");
 		}
 	}
 
-	private void applyExtraction(Receipt receipt, AiExtractionMetadata metadata, ExtractedDocument extracted) {
-		metadata.setExtractionStatus(AiExtractionMetadata.ExtractionStatus.COMPLETED);
-		metadata.setProcessedAt(Instant.now());
-		metadata.setModelVersion(aiProperties.getOpenai().getModel());
-		metadata.setSuggestedVendorOrCustomer(extracted.merchantOrCustomer());
-		metadata.setSuggestedDate(extracted.date());
-		metadata.setSuggestedAmount(extracted.totalAmount());
-		metadata.setSuggestedInvoiceNo(extracted.invoiceNumber());
-		metadata.setSuggestedDueDate(extracted.dueDate());
-		metadata.setSuggestedCurrency(extracted.currency());
-		metadata.setSuggestedTaxAmount(extracted.tax());
-		metadata.setSuggestedPaymentMethod(extracted.paymentMethod());
-		metadata.setSuggestedDescription(extracted.description());
-		metadata.setConfidenceScore(extracted.confidence());
-		metadata.setRawExtractionJson(extracted.rawJson());
-		if (extracted.suggestedTransactionType() != null) {
-			try {
-				metadata.setSuggestedType(AiExtractionMetadata.SuggestedTransactionType.valueOf(
-						extracted.suggestedTransactionType().trim().toUpperCase()));
-			} catch (IllegalArgumentException ignored) {
-				metadata.setSuggestedType(AiExtractionMetadata.SuggestedTransactionType.EXPENSE);
-			}
+	private static boolean isHardFailure(ExtractedDocument extracted) {
+		return extracted.failureCode() != null
+				&& extracted.totalAmount() == null
+				&& extracted.partyName() == null
+				&& extracted.documentDate() == null;
+	}
+
+	private Category historicalCategory(UUID firmId, UUID clientId, ExtractedDocument facts) {
+		if (facts.suggestedTransactionType() != null && facts.suggestedTransactionType().equalsIgnoreCase("INCOME")) {
+			return categorySuggestionService.suggestForCustomer(firmId, clientId, facts.partyName()).orElse(null);
 		}
-		UUID firmId = receipt.getFirmId();
-		UUID clientId = receipt.getClient() != null ? receipt.getClient().getId() : null;
-		Optional<Category> historical = metadata.getSuggestedType() == AiExtractionMetadata.SuggestedTransactionType.INCOME
-				? categorySuggestionService.suggestForCustomer(firmId, clientId, extracted.merchantOrCustomer())
-				: categorySuggestionService.suggestForVendor(firmId, clientId, extracted.merchantOrCustomer());
-		historical.or(() -> categorySuggestionService.findByCode(firmId, clientId, extracted.candidateCategoryCode()))
-				.ifPresent(receipt::setSuggestedCategory);
-		receipt.setAiMetadata(metadata);
+		return categorySuggestionService.suggestForVendor(firmId, clientId, facts.partyName()).orElse(null);
+	}
+
+	private boolean firmAiEnabled(UUID firmId) {
+		return firmRepository.findById(firmId).map(Firm::isAiEnabled).orElse(true);
 	}
 
 	private static byte[] readAll(InputStream inputStream) throws Exception {

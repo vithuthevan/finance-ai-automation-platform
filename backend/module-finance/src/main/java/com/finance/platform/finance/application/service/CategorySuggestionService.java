@@ -27,9 +27,14 @@ public class CategorySuggestionService {
 		if (vendorName == null || vendorName.isBlank()) {
 			return Optional.empty();
 		}
+		String normalized = VendorNormalizer.normalize(vendorName);
 		return expenseRepository
 				.findFirstByFirmIdAndClient_IdAndStatusAndVendorNameIgnoreCaseOrderByApprovedAtDesc(
 						firmId, clientId, TransactionStatus.APPROVED, vendorName.trim())
+				.or(() -> normalized.equalsIgnoreCase(vendorName.trim())
+						? java.util.Optional.empty()
+						: expenseRepository.findFirstByFirmIdAndClient_IdAndStatusAndVendorNameIgnoreCaseOrderByApprovedAtDesc(
+								firmId, clientId, TransactionStatus.APPROVED, normalized))
 				.map(Expense::getCategory)
 				.or(() -> findByCode(firmId, clientId, vendorName));
 	}

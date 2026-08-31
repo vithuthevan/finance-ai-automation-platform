@@ -5,6 +5,9 @@ import com.finance.platform.finance.application.dto.AcceptSuggestionRequest;
 import com.finance.platform.finance.application.dto.DocumentResponse;
 import com.finance.platform.finance.application.dto.ModifySuggestionRequest;
 import com.finance.platform.finance.application.dto.RejectDocumentRequest;
+import com.finance.platform.finance.application.dto.RejectSuggestionRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.finance.platform.finance.application.dto.UnlinkDocumentRequest;
 import com.finance.platform.finance.application.service.DocumentReviewService;
 import com.finance.platform.finance.application.service.DocumentService;
@@ -37,6 +40,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/clients/{clientId}/documents")
 @RequiredArgsConstructor
+@Tag(name = "Documents", description = "Upload, extraction review, suggestion accept/reject, and retry. Accept creates DRAFT only.")
 public class DocumentController {
 
 	private final DocumentService documentService;
@@ -145,8 +149,27 @@ public class DocumentController {
 		documentService.delete(clientId, documentId);
 	}
 
+	@PostMapping("/{documentId}/retry-processing")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
+	@Operation(summary = "Retry failed or pending AI extraction")
+	public DocumentResponse retryProcessing(@PathVariable UUID clientId, @PathVariable UUID documentId) {
+		return documentService.retryProcessing(clientId, documentId);
+	}
+
+	@PostMapping("/{documentId}/review/reject-suggestion")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
+	@Operation(summary = "Reject the AI suggestion without rejecting the document")
+	public DocumentResponse rejectSuggestion(
+			@PathVariable UUID clientId,
+			@PathVariable UUID documentId,
+			@RequestBody(required = false) RejectSuggestionRequest request
+	) {
+		return documentReviewService.rejectSuggestion(clientId, documentId, request != null ? request.note() : null);
+	}
+
 	@PostMapping("/{documentId}/review/accept")
 	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
+	@Operation(summary = "Accept or modify an AI suggestion. Creates a DRAFT transaction only.")
 	public DocumentResponse acceptSuggestion(
 			@PathVariable UUID clientId,
 			@PathVariable UUID documentId,

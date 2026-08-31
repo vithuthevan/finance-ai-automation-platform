@@ -20,13 +20,7 @@ export class ApiService {
   }
 
   get<T>(url: string, params?: Record<string, string | number | boolean | undefined>) {
-    let httpParams = new HttpParams();
-    Object.entries(params ?? {}).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        httpParams = httpParams.set(key, String(value));
-      }
-    });
-    return this.http.get<T>(url, { params: httpParams });
+    return this.http.get<T>(url, { params: this.toParams(params) });
   }
 
   post<T>(url: string, body?: unknown) {
@@ -48,9 +42,46 @@ export class ApiService {
     return this.http.post<T>(url, data);
   }
 
-  download(url: string, params?: Record<string, string>) {
-    let httpParams = new HttpParams();
-    Object.entries(params ?? {}).forEach(([key, value]) => httpParams = httpParams.set(key, value));
-    return this.http.get(url, { params: httpParams, responseType: 'blob' });
+  download(url: string, params?: Record<string, string | number | boolean | undefined>) {
+    return this.http.get(url, { params: this.toParams(params), responseType: 'blob' });
   }
+
+  downloadAttachment(url: string, params?: Record<string, string | number | boolean | undefined>) {
+    return this.http.get(url, { params: this.toParams(params), responseType: 'blob', observe: 'response' }).pipe(
+      map((response) => ({
+        blob: response.body as Blob,
+        filename: attachmentFilename(response.headers.get('Content-Disposition'), 'export')
+      }))
+    );
+  }
+
+  private toParams(params?: Record<string, string | number | boolean | undefined>): HttpParams {
+    let httpParams = new HttpParams();
+    Object.entries(params ?? {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        httpParams = httpParams.set(key, String(value));
+      }
+    });
+    return httpParams;
+  }
+}
+
+function attachmentFilename(header: string | null, fallback: string): string {
+  if (!header) {
+    return fallback;
+  }
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1]);
+    } catch {
+      return fallback;
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(header);
+  if (quoted?.[1]) {
+    return quoted[1];
+  }
+  const plain = /filename=([^;]+)/i.exec(header);
+  return plain?.[1]?.trim() || fallback;
 }

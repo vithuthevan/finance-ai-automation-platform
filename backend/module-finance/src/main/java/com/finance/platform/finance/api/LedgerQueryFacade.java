@@ -9,6 +9,15 @@ public interface LedgerQueryFacade {
 
 	List<ApprovedTransactionView> findApprovedTransactions(UUID clientId, LocalDate from, LocalDate to);
 
+	List<ApprovedTransactionView> findApprovedTransactions(
+			UUID firmId,
+			UUID clientId,
+			LocalDate from,
+			LocalDate to,
+			String transactionType,
+			UUID categoryId
+	);
+
 	record ApprovedTransactionView(
 			UUID id,
 			String type,
@@ -17,6 +26,7 @@ public interface LedgerQueryFacade {
 			BigDecimal taxAmount,
 			String currencyCode,
 			String partyName,
+			String paymentMethod,
 			UUID categoryId,
 			String categoryCode,
 			String categoryName

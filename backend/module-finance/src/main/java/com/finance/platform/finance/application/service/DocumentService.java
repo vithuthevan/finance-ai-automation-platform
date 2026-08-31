@@ -27,6 +27,7 @@ import com.finance.platform.finance.domain.model.Expense;
 import com.finance.platform.finance.domain.model.Income;
 import com.finance.platform.finance.domain.model.Receipt;
 import com.finance.platform.finance.domain.model.TransactionStatus;
+import com.finance.platform.finance.infrastructure.persistence.DocumentProcessingAttemptJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ExpenseJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.IncomeJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ReceiptJpaRepository;
@@ -65,10 +66,12 @@ public class DocumentService {
 	private final ExpenseJpaRepository expenseRepository;
 	private final IncomeJpaRepository incomeRepository;
 	private final ClientAccessService clientAccessService;
+	private final PeriodCloseService periodCloseService;
 	private final FileStorageService fileStorageService;
 	private final StorageProperties storageProperties;
 	private final DomainEventPublisher eventPublisher;
 	private final AuditLogger auditLogger;
+	private final DocumentProcessingAttemptJpaRepository attemptRepository;
 
 	@Transactional
 	public DocumentResponse upload(
@@ -112,7 +115,7 @@ public class DocumentService {
 					.checksumSha256(checksum)
 					.documentType(documentType != null ? documentType : Receipt.DocumentType.RECEIPT)
 					.description(trimToNull(description))
-					.status(Receipt.ReceiptStatus.NEEDS_REVIEW)
+					.status(Receipt.ReceiptStatus.UPLOADED)
 					.aiMetadata(metadata)
 					.uploadedAt(Instant.now())
 					.build();
@@ -298,6 +301,34 @@ public class DocumentService {
 	}
 
 	@Transactional
+	public DocumentResponse retryProcessing(UUID clientId, UUID documentId) {
+		clientAccessService.requireWriteAccess(clientId);
+		Receipt receipt = requireDocument(clientId, documentId);
+		if (receipt.getStatus() == Receipt.ReceiptStatus.LINKED || receipt.getStatus() == Receipt.ReceiptStatus.REJECTED) {
+			throw new ValidationException("documentId", "Linked or rejected documents cannot be reprocessed");
+		}
+		if (receipt.getStatus() == Receipt.ReceiptStatus.PROCESSING
+				&& receipt.getUpdatedAt() != null
+				&& receipt.getUpdatedAt().isAfter(Instant.now().minusSeconds(90))) {
+			throw new BusinessException(ErrorCodes.DOCUMENT_ALREADY_PROCESSING, "Document is already being processed");
+		}
+		long recent = attemptRepository.countByReceipt_IdAndCreatedAtAfter(documentId, Instant.now().minusSeconds(86400));
+		if (recent >= 5) {
+			throw new BusinessException(ErrorCodes.AI_RATE_LIMITED, "Too many processing retries for this document");
+		}
+		eventPublisher.publish(new DocumentUploadedEvent(receipt.getId(), clientId, receipt.getFirmId()));
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(receipt.getFirmId())
+				.action(AuditAction.AI_PROCESSING_RETRIED)
+				.resourceType(AuditResourceType.DOCUMENT)
+				.resourceId(receipt.getId())
+				.clientId(clientId)
+				.afterState(Map.of("status", receipt.getStatus().name()))
+				.build());
+		return toResponse(receipt, false, null);
+	}
+
+	@Transactional
 	public DocumentResponse markDuplicate(UUID clientId, UUID documentId) {
 		return reject(clientId, documentId, "Marked duplicate");
 	}
@@ -322,6 +353,9 @@ public class DocumentService {
 		if (expenseId != null) {
 			Expense expense = requireFirmExpense(clientId, expenseId);
 			assertUnlinkAllowed(expense.getStatus());
+			if (expense.getStatus() == TransactionStatus.APPROVED || expense.getStatus() == TransactionStatus.VOID) {
+				periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate());
+			}
 			expense.getReceipts().remove(receipt);
 			if (expense.getPrimaryReceipt() != null && expense.getPrimaryReceipt().getId().equals(receipt.getId())) {
 				expense.setPrimaryReceipt(expense.getReceipts().stream().findFirst().orElse(null));
@@ -331,6 +365,9 @@ public class DocumentService {
 		if (incomeId != null) {
 			Income income = requireFirmIncome(clientId, incomeId);
 			assertUnlinkAllowed(income.getStatus());
+			if (income.getStatus() == TransactionStatus.APPROVED || income.getStatus() == TransactionStatus.VOID) {
+				periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate());
+			}
 			income.getReceipts().remove(receipt);
 			if (income.getPrimaryReceipt() != null && income.getPrimaryReceipt().getId().equals(receipt.getId())) {
 				income.setPrimaryReceipt(income.getReceipts().stream().findFirst().orElse(null));
@@ -408,6 +445,9 @@ public class DocumentService {
 			expenseRepository.save(expense);
 			after.put("expenseId", expenseId);
 			after.put("transactionStatus", expense.getStatus().name());
+			if (periodCloseService.isPeriodClosed(clientId, expense.getTransactionDate())) {
+				after.put("postCloseEvidence", true);
+			}
 		}
 		if (incomeId != null) {
 			Income income = requireFirmIncome(clientId, incomeId);
@@ -416,6 +456,9 @@ public class DocumentService {
 			incomeRepository.save(income);
 			after.put("incomeId", incomeId);
 			after.put("transactionStatus", income.getStatus().name());
+			if (periodCloseService.isPeriodClosed(clientId, income.getTransactionDate())) {
+				after.put("postCloseEvidence", true);
+			}
 		}
 		receipt.setStatus(Receipt.ReceiptStatus.LINKED);
 		Receipt saved = receiptRepository.save(receipt);
@@ -629,6 +672,9 @@ public class DocumentService {
 
 	private DocumentResponse toResponse(Receipt receipt, boolean possibleDuplicate, UUID existingDocumentId) {
 		AiExtractionMetadata ai = receipt.getAiMetadata() != null ? receipt.getAiMetadata() : new AiExtractionMetadata();
+		UUID scopedClientId = receipt.getClient() != null ? receipt.getClient().getId() : null;
+		boolean hideReasoning = SecurityUtils.requireCurrentUser().getRole() == Role.RoleCode.AUDITOR
+				|| (scopedClientId != null && clientAccessService.effectiveAccessType(scopedClientId) == UserClientAccess.AccessType.UPLOAD_ONLY);
 		return new DocumentResponse(
 				receipt.getId(),
 				receipt.getFirmId(),
@@ -645,12 +691,22 @@ public class DocumentService {
 				receipt.getStatus(),
 				ai.getExtractionStatus(),
 				ai.getConfidenceScore(),
+				confidenceLabel(ai.getConfidenceScore()),
 				ai.getSuggestedType() != null ? ai.getSuggestedType().name() : null,
 				ai.getSuggestedVendorOrCustomer(),
 				ai.getSuggestedDate(),
 				ai.getSuggestedAmount(),
+				ai.getSuggestedSubtotal(),
+				ai.getSuggestedTaxAmount(),
+				ai.getSuggestedCurrency(),
+				ai.getSuggestedInvoiceNo(),
+				ai.getSuggestedDueDate(),
+				ai.getSuggestedPaymentMethod(),
+				ai.getSuggestedDescription(),
 				receipt.getSuggestedCategory() != null ? receipt.getSuggestedCategory().getId() : null,
-				ai.getOcrText(),
+				receipt.getSuggestedCategory() != null ? receipt.getSuggestedCategory().getName() : null,
+				receipt.getSuggestedCategory() != null ? receipt.getSuggestedCategory().getCode() : null,
+				hideReasoning ? null : ai.getOcrText(),
 				possibleDuplicate,
 				existingDocumentId,
 				receipt.getExpenses() == null ? List.of() : receipt.getExpenses().stream().map(Expense::getId).toList(),
@@ -658,9 +714,33 @@ public class DocumentService {
 				receipt.getReviewedBy() != null ? receipt.getReviewedBy().getId() : null,
 				receipt.getReviewedAt(),
 				receipt.getReviewNote(),
+				ai.getReviewOutcome(),
+				ai.getFailureCode(),
+				ai.getFailureMessage(),
+				ai.getAmountInconsistency(),
+				ai.getDateWarning(),
+				ai.getSupplierConfidence(),
+				ai.getDateConfidence(),
+				ai.getAmountConfidence(),
+				ai.getTaxConfidence(),
+				ai.getAiProvider(),
+				ai.getModelVersion(),
 				receipt.getUploadedAt(),
 				receipt.getCreatedAt()
 		);
+	}
+
+	private static String confidenceLabel(java.math.BigDecimal score) {
+		if (score == null) {
+			return "Unknown";
+		}
+		if (score.compareTo(new java.math.BigDecimal("0.80")) >= 0) {
+			return "High";
+		}
+		if (score.compareTo(new java.math.BigDecimal("0.50")) >= 0) {
+			return "Medium";
+		}
+		return "Low";
 	}
 
 	private static Map<String, Object> documentSnapshot(Receipt receipt) {

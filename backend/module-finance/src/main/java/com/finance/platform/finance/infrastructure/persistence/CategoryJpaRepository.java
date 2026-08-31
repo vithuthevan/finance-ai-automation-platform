@@ -13,7 +13,8 @@ public interface CategoryJpaRepository extends JpaRepository<Category, UUID> {
 
 	Optional<Category> findByIdAndFirmIdAndDeletedAtIsNull(UUID id, UUID firmId);
 
-	List<Category> findAllByFirmIdAndDeletedAtIsNull(UUID firmId);
+	@org.springframework.data.jpa.repository.Query("select c from Category c left join fetch c.client where c.firmId = :firmId and c.deletedAt is null")
+	List<Category> findAllByFirmIdAndDeletedAtIsNull(@org.springframework.data.repository.query.Param("firmId") UUID firmId);
 
 	boolean existsByFirmIdAndCodeAndDeletedAtIsNull(UUID firmId, String code);
 

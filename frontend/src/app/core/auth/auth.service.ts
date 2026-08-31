@@ -62,7 +62,7 @@ export class AuthService {
 
   homePath(): string {
     if (this.isUploadOnly()) {
-      return '/app/documents';
+      return '/app/owner';
     }
     if (this.hasRole('BUSINESS_OWNER')) {
       return '/app/owner';

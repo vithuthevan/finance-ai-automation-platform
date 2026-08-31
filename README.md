@@ -78,7 +78,7 @@ See [`.env.example`](.env.example). Important variables:
 | `APP_JWT_SECRET` | JWT signing secret (required in `prod`) |
 | `APP_CORS_ALLOWED_ORIGINS` | Browser origins for separate-host UI |
 | `APP_STORAGE_PROVIDER` | `local` or `s3` |
-| `APP_AI_*` | Optional extraction |
+| `APP_AI_*` / `DOCUMENT_EXTRACTION_PROVIDER` | Optional OCR/AI extraction. See [docs/AI.md](docs/AI.md) |
 | `APP_EMAIL_PROVIDER` | `log` or `smtp` |
 
 AI, S3, and SMTP are optional. The bookkeeping workflow remains usable without them.
@@ -122,12 +122,13 @@ Base path: `/api/v1`
 
 - Auth, users, clients, categories
 - Documents, expenses, income
-- Bank, periods, document requests
+- Bank, periods, document requests, month-end close work queue
 - Reports, audit, firm, notifications
 - Health: `/api/v1/health`, `/api/v1/health/ready`
 
 ## Documentation
 
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
+- [Month-end close](docs/CLOSE.md)
 - [Product roadmap](docs/PRODUCT_ROADMAP.md)
 - [Deployment](docs/DEPLOYMENT.md)

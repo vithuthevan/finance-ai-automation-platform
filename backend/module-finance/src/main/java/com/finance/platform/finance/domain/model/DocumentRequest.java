@@ -33,6 +33,10 @@ public class DocumentRequest extends TenantAwareEntity {
 	@JoinColumn(name = "client_id", nullable = false)
 	private Client client;
 
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "period_id")
+	private AccountingPeriod period;
+
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "requested_by", nullable = false)
 	private User requestedBy;

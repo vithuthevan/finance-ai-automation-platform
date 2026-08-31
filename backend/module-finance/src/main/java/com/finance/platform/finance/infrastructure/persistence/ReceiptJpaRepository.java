@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,6 +16,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ReceiptJpaRepository extends JpaRepository<Receipt, UUID>, JpaSpecificationExecutor<Receipt> {
+
+	@Query("select r from Receipt r left join fetch r.client left join fetch r.suggestedCategory where r.id = :id")
+	Optional<Receipt> findDetailedById(@Param("id") UUID id);
 
 	Optional<Receipt> findByIdAndClientIdAndDeletedAtIsNull(UUID id, UUID clientId);
 
@@ -37,4 +42,6 @@ public interface ReceiptJpaRepository extends JpaRepository<Receipt, UUID>, JpaS
 	long countByClientIdAndStatusInAndDeletedAtIsNull(UUID clientId, List<ReceiptStatus> statuses);
 
 	long countByClientIdAndUploadedAtGreaterThanEqualAndDeletedAtIsNull(UUID clientId, Instant uploadedAt);
+
+	long countByFirmIdAndAiMetadata_ReviewOutcome(UUID firmId, String reviewOutcome);
 }

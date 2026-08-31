@@ -75,6 +75,7 @@ public class GlobalExceptionHandler {
 		detail.setTitle("Business Rule Violation");
 		detail.setDetail(ex.getMessage());
 		detail.setProperty("errorCode", ex.getErrorCode());
+		ex.getProperties().forEach(detail::setProperty);
 		return detail;
 	}
 
@@ -94,7 +95,7 @@ public class GlobalExceptionHandler {
 		detail.setDetail(ex.getMessage() != null && !ex.getMessage().isBlank()
 				? ex.getMessage()
 				: "You do not have permission to perform this action.");
-		detail.setProperty("errorCode", ErrorCodes.ACCESS_DENIED);
+		detail.setProperty("errorCode", reportAccessDenied(ex) ? ErrorCodes.REPORT_ACCESS_DENIED : ErrorCodes.ACCESS_DENIED);
 		return detail;
 	}
 
@@ -137,6 +138,11 @@ public class GlobalExceptionHandler {
 		detail.setDetail("An unexpected error occurred.");
 		detail.setProperty("errorCode", "INTERNAL_ERROR");
 		return detail;
+	}
+
+	private boolean reportAccessDenied(AccessDeniedException ex) {
+		String message = ex.getMessage();
+		return message != null && message.toLowerCase().contains("financial report");
 	}
 
 	private Map<String, String> collectFieldErrors(MethodArgumentNotValidException ex) {

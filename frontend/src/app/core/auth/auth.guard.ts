@@ -29,7 +29,7 @@ export const ledgerGuard: CanActivateFn = () => {
   if (!auth.isAuthenticated()) {
     return router.createUrlTree(['/login']);
   }
-  return auth.isUploadOnly() ? router.createUrlTree(['/app/documents']) : true;
+  return auth.isUploadOnly() ? router.createUrlTree(['/app/owner']) : true;
 };
 
 export const ownerGuard: CanActivateFn = () => {
@@ -41,5 +41,5 @@ export const ownerGuard: CanActivateFn = () => {
   if (!auth.hasRole('BUSINESS_OWNER')) {
     return router.createUrlTree(['/unauthorized']);
   }
-  return auth.isUploadOnly() ? router.createUrlTree(['/app/documents']) : true;
+  return true;
 };

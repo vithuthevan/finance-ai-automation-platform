@@ -50,6 +50,7 @@ export class ShellComponent {
   readonly items = computed(() => {
     if (this.auth.isUploadOnly()) {
       return [
+        { path: '/app/owner', label: 'Requested documents' },
         { path: '/app/documents', label: 'My documents' }
       ];
     }

@@ -88,6 +88,10 @@ public class Receipt extends TenantAwareEntity {
 	@JoinColumn(name = "reviewed_by")
 	private User reviewedBy;
 
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "confirmed_category_id")
+	private Category confirmedCategory;
+
 	private Instant uploadedAt;
 	private Instant deletedAt;
 

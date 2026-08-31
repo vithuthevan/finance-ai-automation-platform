@@ -18,6 +18,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "accounting_periods", uniqueConstraints = @UniqueConstraint(columnNames = {"firm_id", "client_id", "period_year", "period_month"}))
@@ -38,10 +39,25 @@ public class AccountingPeriod extends TenantAwareEntity {
 	@Column(name = "period_month", nullable = false)
 	private int periodMonth;
 
+	@Column(name = "start_date", nullable = false)
+	private LocalDate startDate;
+
+	@Column(name = "end_date", nullable = false)
+	private LocalDate endDate;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	@Builder.Default
 	private PeriodStatus status = PeriodStatus.OPEN;
+
+	@Column(name = "close_note", columnDefinition = "TEXT")
+	private String closeNote;
+
+	private Instant reviewStartedAt;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "review_started_by")
+	private User reviewStartedBy;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "closed_by")

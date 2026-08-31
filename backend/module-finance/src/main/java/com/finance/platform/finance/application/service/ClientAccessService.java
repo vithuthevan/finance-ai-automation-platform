@@ -82,7 +82,12 @@ public class ClientAccessService {
 	}
 
 	public Client requireReportAccess(UUID clientId) {
-		Client client = requireReadAccess(clientId);
+		Client client;
+		try {
+			client = requireReadAccess(clientId);
+		} catch (ResourceNotFoundException ex) {
+			throw new ResourceNotFoundException("Report client", clientId);
+		}
 		UserClientAccess.AccessType accessType = effectiveAccessType(clientId);
 		if (accessType == UserClientAccess.AccessType.UPLOAD_ONLY) {
 			throw new AccessDeniedException("Upload-only users cannot access financial reports");

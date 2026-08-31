@@ -6,7 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 
@@ -89,6 +89,10 @@ export class ExpensesPage implements OnInit {
   selected: any = null;
   attachDocumentId = '';
   clientId = '';
+  filterStatus = '';
+  filterCategoryId = '';
+  filterFrom = '';
+  filterTo = '';
   columns = ['date', 'vendor', 'amount', 'status', 'documents', 'actions'];
   form = this.fb.nonNullable.group({
     transactionDate: ['', Validators.required],
@@ -97,12 +101,25 @@ export class ExpensesPage implements OnInit {
     vendorName: ['', Validators.required]
   });
 
-  constructor(private api: ApiService, private fb: FormBuilder, readonly auth: AuthService) {}
+  constructor(
+    private api: ApiService,
+    private fb: FormBuilder,
+    private route: ActivatedRoute,
+    readonly auth: AuthService
+  ) {}
 
   ngOnInit(): void {
+    const query = this.route.snapshot.queryParamMap;
+    this.filterStatus = query.get('status') ?? '';
+    this.filterCategoryId = query.get('categoryId') ?? '';
+    this.filterFrom = query.get('from') ?? '';
+    this.filterTo = query.get('to') ?? '';
+    const preferredClient = query.get('clientId') ?? '';
     this.api.list<any>('/api/v1/clients').subscribe((clients) => {
       this.clients = clients;
-      this.clientId = clients[0]?.id ?? '';
+      this.clientId = preferredClient && clients.some((client) => client.id === preferredClient)
+        ? preferredClient
+        : (clients[0]?.id ?? '');
       this.reload();
     });
     this.api.get<any[]>('/api/v1/categories', { categoryType: 'EXPENSE' }).subscribe((cats) => this.categories = cats);
@@ -110,7 +127,13 @@ export class ExpensesPage implements OnInit {
 
   reload(): void {
     if (!this.clientId) return;
-    this.api.get<any>(`/api/v1/clients/${this.clientId}/expenses`, { size: 50 }).subscribe((page) => this.rows = page.content ?? []);
+    this.api.get<any>(`/api/v1/clients/${this.clientId}/expenses`, {
+      size: 50,
+      status: this.filterStatus,
+      categoryId: this.filterCategoryId,
+      from: this.filterFrom,
+      to: this.filterTo
+    }).subscribe((page) => this.rows = page.content ?? []);
   }
 
   create(): void {

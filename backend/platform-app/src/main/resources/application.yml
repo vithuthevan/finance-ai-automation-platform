@@ -41,11 +41,15 @@ app:
       secret-key: ${APP_STORAGE_S3_SECRET_KEY:}
   ai:
     enabled: ${APP_AI_ENABLED:false}
-    provider: ${APP_AI_PROVIDER:disabled}
+    provider: ${APP_AI_PROVIDER:${DOCUMENT_EXTRACTION_PROVIDER:none}}
+    extraction-provider: ${DOCUMENT_EXTRACTION_PROVIDER:${APP_AI_PROVIDER:none}}
+    accounting-provider: ${ACCOUNTING_AI_PROVIDER:${APP_AI_PROVIDER:none}}
+    timeout-seconds: ${APP_AI_TIMEOUT_SECONDS:45}
+    max-retries-per-document: ${APP_AI_MAX_RETRIES:5}
     openai:
-      api-key: ${APP_AI_API_KEY:}
-      base-url: ${APP_AI_BASE_URL:https://api.openai.com/v1}
-      model: ${APP_AI_MODEL:gpt-4o-mini}
+      api-key: ${APP_AI_API_KEY:${AI_API_KEY:}}
+      base-url: ${APP_AI_BASE_URL:${AI_BASE_URL:https://api.openai.com/v1}}
+      model: ${APP_AI_MODEL:${AI_MODEL:gpt-4o-mini}}
   email:
     provider: ${APP_EMAIL_PROVIDER:log}
   cors:

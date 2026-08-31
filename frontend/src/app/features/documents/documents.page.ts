@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { RouterLink, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DatePipe } from '@angular/common';
@@ -72,10 +72,12 @@ import { AuthService } from '../../core/auth/auth.service';
           <mat-select [(ngModel)]="status" (selectionChange)="reload()">
             <mat-option value="">All</mat-option>
             <mat-option value="NEEDS_REVIEW">Needs review</mat-option>
+            <mat-option value="PROCESSING">Processing</mat-option>
+            <mat-option value="EXTRACTED">Extracted</mat-option>
             <mat-option value="UPLOADED">Uploaded</mat-option>
+            <mat-option value="FAILED">Failed</mat-option>
             <mat-option value="LINKED">Linked</mat-option>
             <mat-option value="REJECTED">Rejected</mat-option>
-            <mat-option value="FAILED">Failed</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field>
@@ -162,13 +164,26 @@ export class DocumentsPage implements OnInit {
   total = 0;
   columns = ['fileName', 'clientName', 'documentType', 'uploadedByName', 'uploadedAt', 'status', 'linked', 'actions'];
 
-  constructor(private api: ApiService, readonly auth: AuthService) {}
+  constructor(private api: ApiService, readonly auth: AuthService, private route: ActivatedRoute) {}
 
   ngOnInit(): void {
+    const query = this.route.snapshot.queryParamMap;
+    if (query.get('status')) {
+      this.status = query.get('status') ?? '';
+    } else if (this.auth.hasRole('ADMIN', 'ACCOUNTANT')) {
+      this.status = 'NEEDS_REVIEW';
+    }
+    this.from = query.get('from') ?? '';
+    this.to = query.get('to') ?? '';
+    this.linked = query.get('linked') ?? '';
+    const preferredClient = query.get('clientId') ?? '';
     this.api.list<any>('/api/v1/clients').subscribe((clients) => {
       this.clients = clients;
       this.lockClient = this.auth.hasRole('BUSINESS_OWNER') && clients.length === 1;
-      if (this.lockClient) {
+      if (preferredClient && clients.some((client) => client.id === preferredClient)) {
+        this.clientId = preferredClient;
+        this.uploadClientId = preferredClient;
+      } else if (this.lockClient) {
         this.clientId = clients[0].id;
         this.uploadClientId = clients[0].id;
       } else if (this.auth.hasRole('BUSINESS_OWNER') && clients.length > 0) {

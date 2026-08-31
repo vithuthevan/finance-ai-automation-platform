@@ -20,10 +20,15 @@ import { ApiService } from '../../core/services/api.service';
         <mat-slide-toggle formControlName="aiEnabled">AI extraction enabled</mat-slide-toggle>
         <div class="toolbar-row"><button mat-flat-button color="primary" type="submit">Save</button></div>
       </form>
+      @if (metrics) {
+        <h2>AI processing</h2>
+        <p class="hint">Processed {{ metrics.documentsProcessed }} · Success {{ metrics.successes }} · Failed {{ metrics.failures }} · Accepted {{ metrics.suggestionsAccepted }} · Modified {{ metrics.suggestionsModified }} · Rejected {{ metrics.suggestionsRejected }}</p>
+      }
     </div>
   `
 })
 export class FirmPage implements OnInit {
+  metrics: any;
   form = this.fb.nonNullable.group({
     name: [''],
     currencyCode: ['LKR'],
@@ -36,6 +41,10 @@ export class FirmPage implements OnInit {
 
   ngOnInit(): void {
     this.api.get<any>('/api/v1/firm').subscribe((firm) => this.form.patchValue(firm));
+    this.api.get<any>('/api/v1/ai/metrics').subscribe({
+      next: (metrics) => this.metrics = metrics,
+      error: () => this.metrics = null
+    });
   }
 
   save(): void {

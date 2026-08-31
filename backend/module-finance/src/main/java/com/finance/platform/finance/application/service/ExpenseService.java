@@ -120,7 +120,7 @@ public class ExpenseService {
 		Client client = clientAccessService.requireWriteAccess(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		TransactionStatusRules.assertDraft(expense.getStatus());
-		periodCloseService.assertPeriodOpen(clientId, request.transactionDate());
+		periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate(), request.transactionDate());
 		Map<String, Object> before = expenseSnapshot(expense);
 
 		Category category = requireExpenseCategory(request.categoryId(), client);
@@ -152,6 +152,7 @@ public class ExpenseService {
 		clientAccessService.requireWriteAccess(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		TransactionStatusRules.assertDraft(expense.getStatus());
+		periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate());
 		Map<String, Object> before = expenseSnapshot(expense);
 		UUID firmId = expense.getFirmId();
 		UUID id = expense.getId();
@@ -171,6 +172,7 @@ public class ExpenseService {
 		clientAccessService.requireApproveAccess(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		TransactionStatusRules.assertCanApprove(expense.getStatus());
+		periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate());
 		Map<String, Object> before = expenseSnapshot(expense);
 		expense.approve(clientAccessService.requireCurrentUserEntity());
 		Expense saved = expenseRepository.save(expense);
@@ -191,6 +193,7 @@ public class ExpenseService {
 		clientAccessService.requireApproveAccess(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		TransactionStatusRules.assertCanVoid(expense.getStatus());
+		periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate());
 		String voidReason = requireVoidReason(reason);
 		Map<String, Object> before = expenseSnapshot(expense);
 		expense.voidExpense(clientAccessService.requireCurrentUserEntity(), voidReason);

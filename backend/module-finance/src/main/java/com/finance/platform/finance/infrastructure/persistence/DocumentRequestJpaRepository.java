@@ -1,7 +1,11 @@
 package com.finance.platform.finance.infrastructure.persistence;
 
 import com.finance.platform.finance.domain.model.DocumentRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +20,16 @@ public interface DocumentRequestJpaRepository extends JpaRepository<DocumentRequ
 	Optional<DocumentRequest> findByIdAndClient_Id(UUID id, UUID clientId);
 
 	long countByClient_IdAndStatus(UUID clientId, DocumentRequest.RequestStatus status);
+
+	@Query("""
+			select r from DocumentRequest r
+			where r.client.id = :clientId
+			  and (:status is null or r.status = :status)
+			  and (:periodId is null or r.period.id = :periodId or r.period is null)
+			""")
+	Page<DocumentRequest> search(
+			@Param("clientId") UUID clientId,
+			@Param("status") DocumentRequest.RequestStatus status,
+			@Param("periodId") UUID periodId,
+			Pageable pageable);
 }

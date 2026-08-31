@@ -18,6 +18,10 @@ public interface ClientJpaRepository extends JpaRepository<Client, UUID> {
 
 	List<Client> findByFirmIdAndDeletedAtIsNull(UUID firmId);
 
+	List<Client> findByFirmIdAndDeletedAtIsNullOrderByNameAsc(UUID firmId);
+
+	List<Client> findByFirmIdAndDeletedAtIsNullAndIdInOrderByNameAsc(UUID firmId, Collection<UUID> ids);
+
 	Page<Client> findByFirmIdAndDeletedAtIsNull(UUID firmId, Pageable pageable);
 
 	Page<Client> findByFirmIdAndDeletedAtIsNullAndIdIn(UUID firmId, Collection<UUID> ids, Pageable pageable);

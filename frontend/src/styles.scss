@@ -56,7 +56,20 @@ body {
 .status-UPLOADED { color: #1d4ed8; font-weight: 600; }
 .status-LINKED { color: #047857; font-weight: 600; }
 .status-REJECTED { color: #9b1c1c; font-weight: 600; }
-.status-FAILED { color: #9b1c1c; font-weight: 600; }
+.status-READY { color: #047857; font-weight: 600; }
+.status-OPEN { color: #1d4ed8; font-weight: 600; }
+.status-IN_REVIEW { color: #b45309; font-weight: 600; }
+.status-REOPENED { color: #7c3aed; font-weight: 600; }
+
+.status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e4e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
 
 .full-width { width: 100%; }
 
@@ -90,4 +103,126 @@ body {
 
 @media (max-width: 900px) {
   .doc-review { grid-template-columns: 1fr; }
+}
+
+.report-nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.report-nav a {
+  color: #334155;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.report-nav a.active {
+  color: #0f766e;
+  border-bottom: 2px solid #0f766e;
+}
+
+.pnl {
+  background: #fff;
+  padding: 20px 24px;
+  border-radius: 6px;
+  max-width: 720px;
+}
+
+.pnl header h2 {
+  margin: 0 0 4px;
+}
+
+.pnl-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pnl-table th,
+.pnl-table td {
+  padding: 6px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pnl-table .num {
+  text-align: right;
+  width: 140px;
+}
+
+.pnl-table .total td {
+  border-top: 2px solid #1f2933;
+  border-bottom: none;
+  font-weight: 700;
+}
+
+.pnl-table.net .total td {
+  border-top: 3px double #1f2933;
+  font-size: 16px;
+}
+
+.pnl-table tr.clickable {
+  cursor: pointer;
+}
+
+.pnl-table tr.clickable:hover {
+  background: #f8fafc;
+}
+
+.empty-report {
+  background: #fff;
+  padding: 20px;
+  border-left: 4px solid #b45309;
+}
+
+.delta-favorable {
+  color: #047857;
+}
+
+.delta-watch {
+  color: #92400e;
+}
+
+.trend-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 280px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.trend-label {
+  font-weight: 600;
+}
+
+.trend-bars {
+  background: #e5e7eb;
+  height: 18px;
+  position: relative;
+}
+
+.trend-bars .bar {
+  height: 8px;
+  margin-bottom: 2px;
+}
+
+.trend-bars .bar.income {
+  background: #0f766e;
+}
+
+.trend-bars .bar.expense {
+  background: #b45309;
+}
+
+.trend-values {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.low-confidence {
+  background: #fff7ed;
 }

@@ -78,11 +78,61 @@ public class AiExtractionMetadata {
 	@Column(name = "ai_processed_at")
 	private Instant processedAt;
 
+	@Column(name = "suggested_subtotal", precision = 19, scale = 4)
+	private BigDecimal suggestedSubtotal;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "line_items_json", columnDefinition = "jsonb")
+	private String lineItemsJson;
+
+	@Column(name = "supplier_confidence", precision = 5, scale = 4)
+	private BigDecimal supplierConfidence;
+
+	@Column(name = "date_confidence", precision = 5, scale = 4)
+	private BigDecimal dateConfidence;
+
+	@Column(name = "amount_confidence", precision = 5, scale = 4)
+	private BigDecimal amountConfidence;
+
+	@Column(name = "tax_confidence", precision = 5, scale = 4)
+	private BigDecimal taxConfidence;
+
+	@Column(name = "failure_code", length = 50)
+	private String failureCode;
+
+	@Column(name = "failure_message", length = 500)
+	private String failureMessage;
+
+	@Column(name = "review_outcome", length = 20)
+	private String reviewOutcome;
+
+	@Column(name = "amount_inconsistency")
+	private Boolean amountInconsistency;
+
+	@Column(name = "date_warning", length = 80)
+	private String dateWarning;
+
+	@Column(name = "ai_provider", length = 40)
+	private String aiProvider;
+
+	@Column(name = "input_tokens")
+	private Integer inputTokens;
+
+	@Column(name = "output_tokens")
+	private Integer outputTokens;
+
+	@Column(name = "processing_attempt_count")
+	private Integer processingAttemptCount;
+
 	public enum ExtractionStatus {
 		NOT_STARTED, PENDING, PROCESSING, COMPLETED, FAILED, AI_DISABLED
 	}
 
 	public enum SuggestedTransactionType {
-		EXPENSE, INCOME
+		EXPENSE, INCOME, UNKNOWN
+	}
+
+	public enum ReviewOutcome {
+		ACCEPTED, MODIFIED, REJECTED, MANUAL
 	}
 }

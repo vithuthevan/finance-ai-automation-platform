@@ -120,7 +120,7 @@ public class IncomeService {
 		Client client = clientAccessService.requireWriteAccess(clientId);
 		Income income = findIncome(clientId, incomeId);
 		TransactionStatusRules.assertDraft(income.getStatus());
-		periodCloseService.assertPeriodOpen(clientId, request.transactionDate());
+		periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate(), request.transactionDate());
 		Map<String, Object> before = incomeSnapshot(income);
 
 		Category category = requireIncomeCategory(request.categoryId(), client);
@@ -153,6 +153,7 @@ public class IncomeService {
 		clientAccessService.requireWriteAccess(clientId);
 		Income income = findIncome(clientId, incomeId);
 		TransactionStatusRules.assertDraft(income.getStatus());
+		periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate());
 		Map<String, Object> before = incomeSnapshot(income);
 		UUID firmId = income.getFirmId();
 		UUID id = income.getId();
@@ -172,6 +173,7 @@ public class IncomeService {
 		clientAccessService.requireApproveAccess(clientId);
 		Income income = findIncome(clientId, incomeId);
 		TransactionStatusRules.assertCanApprove(income.getStatus());
+		periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate());
 		if (income.getPaymentMethod() == null) {
 			throw new ValidationException("paymentMethod", "Payment method is required before approving income");
 		}
@@ -195,6 +197,7 @@ public class IncomeService {
 		clientAccessService.requireApproveAccess(clientId);
 		Income income = findIncome(clientId, incomeId);
 		TransactionStatusRules.assertCanVoid(income.getStatus());
+		periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate());
 		String voidReason = reason == null ? "" : reason.trim();
 		if (voidReason.isBlank()) {
 			throw new ValidationException("reason", "Void reason is required");

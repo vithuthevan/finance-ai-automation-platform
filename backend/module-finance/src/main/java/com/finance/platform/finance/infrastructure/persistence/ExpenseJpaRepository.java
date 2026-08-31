@@ -35,4 +35,21 @@ public interface ExpenseJpaRepository extends JpaRepository<Expense, UUID>, JpaS
 
 	java.util.List<Expense> findByClientIdAndStatusAndTransactionDateBetween(
 			UUID clientId, TransactionStatus status, java.time.LocalDate from, java.time.LocalDate to);
+
+	@org.springframework.data.jpa.repository.Query("""
+			select e from Expense e
+			left join fetch e.category
+			where e.firmId = :firmId
+			  and e.client.id = :clientId
+			  and e.status = com.finance.platform.finance.domain.model.TransactionStatus.APPROVED
+			  and e.transactionDate between :from and :to
+			  and (:categoryId is null or e.category.id = :categoryId)
+			order by e.transactionDate, e.id
+			""")
+	java.util.List<Expense> findApprovedForReport(
+			@org.springframework.data.repository.query.Param("firmId") UUID firmId,
+			@org.springframework.data.repository.query.Param("clientId") UUID clientId,
+			@org.springframework.data.repository.query.Param("from") java.time.LocalDate from,
+			@org.springframework.data.repository.query.Param("to") java.time.LocalDate to,
+			@org.springframework.data.repository.query.Param("categoryId") UUID categoryId);
 }
