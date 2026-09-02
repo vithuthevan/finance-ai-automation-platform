@@ -32,7 +32,7 @@ The existing `Receipt` document layer is now a complete evidence workflow withou
 
 ### Remaining
 
-- Bank statement parsing (later banking phases)
+- (none — bank CSV import completed in Phase 6)
 
 ### Known Limitations
 
@@ -177,7 +177,6 @@ Accountants can select a client and month, see evidence-driven close readiness, 
 
 ### Remaining
 
-- Bank statement import and reconciliation as a close check (Phase 6)
 - Firm-configurable severity for unsupported transactions (architecture allows it; V1 is warning)
 - Period deletion UI (empty OPEN delete was omitted; history is retained)
 
@@ -194,16 +193,124 @@ Accountants can select a client and month, see evidence-driven close readiness, 
 ### Important Decisions
 
 - Reused `accounting_periods` (V11) and `document_requests` (V12) instead of new period/request products
-- Bank reconciliation must not block close until it is a real workflow
+- Bank reconciliation blocking is implemented in Phase 6 (see below)
 - 100% readiness means no blockers; warnings can remain at 100%
 - Reopen is ADMIN-only in V1
 - Attaching evidence after close does not require reopen; changing amounts does
 
 ### Future Close Checks
 
-- `BANK_RECONCILIATION_INCOMPLETE` / `BANK_RECONCILIATION_COMPLETE` (Phase 6/7)
 - Optional firm policy: unsupported approved transactions as BLOCKER
 - Optional evidence-required flag on individual transactions
+
+## Phase 6 — Bank Statement Import & Reconciliation
+
+**Status:** complete
+
+Accountants can manage bank accounts, import CSV statements with column mapping and preview, review deterministic match suggestions, confirm/reject/manual match, create DRAFT ledger entries from unmatched lines, request supporting documents, and complete reconciliation as part of month-end close.
+
+### Completed
+
+- Reused V13 `bank_imports`, `bank_transactions`, `reconciliation_matches` (extended, not replaced)
+- `bank_accounts`, `bank_import_profiles`; Flyway `V21__bank_statement_phase6.sql`
+- `BankStatementImporter` abstraction + `GenericBankStatementCsvImporter` (mapping, preview, validation)
+- File checksum + per-row hash duplicate detection
+- `ReconciliationSuggestionService` with documented deterministic scoring and direction rules
+- `BankAccountService`, expanded `BankReconciliationService`, `BankController` REST API
+- Match workflow: suggest → confirm/reject/unmatch/ignore; create DRAFT expense/income from bank line
+- Document request integration from bank transaction (`DOCUMENT_REQUEST_CREATED_FROM_BANK`)
+- Closed-period guards on reconciliation mutations via `PeriodCloseService.assertPeriodOpen`
+- `BankReconciliationCheck` + `BankImportPresenceCheck` enabled in close engine
+- Readiness summary extended with bank transaction counts and `reconciliationPercent`
+- Angular banking workspace: accounts, import wizard (map/preview/import), reconciliation UI
+- Audit: `BANK_ACCOUNT_*`, `BANK_IMPORT_*`, `RECONCILIATION_*`, `BANK_TRANSACTION_IGNORED`, `TRANSACTION_CREATED_FROM_BANK`
+- Docs: `docs/BANK_RECONCILIATION.md`
+
+### Remaining
+
+- PDF/OCR bank statements and direct bank API integrations
+- Multi-transaction split matching (1:N, N:1)
+- Auto-confirm match when bank-created draft is approved
+- Reconciliation status CSV/XLSX export
+- Opening/closing balance validation when balance column absent
+
+### Known Limitations
+
+- Builds and tests were not executed (project restriction)
+- CSV only; user must export from their bank
+- 1:1 confirmed matches in V1
+- `MISSING_RECEIPT` legacy status retained in schema; V1 uses `IGNORE` with reason
+- Import profiles saved on import when `profileName` provided; no separate profile CRUD UI
+
+### Important Decisions
+
+- No bank credentials stored; not a banking product
+- Debit → expense / credit → income suggestion direction enforced; manual create respects direction
+- Bank-created ledger entries remain DRAFT until normal approval workflow
+- Clients without bank accounts are not blocked by bank reconciliation checks
+- Bank account configured but no period import → WARNING only, not a close blocker
+
+### Supported Import Format
+
+- Generic CSV with configurable columns and date formats (`AUTO`, `dd/MM/yyyy`, ISO, etc.)
+
+### Close Integration
+
+- `BANK_RECONCILIATION_INCOMPLETE` blocker when unmatched/suggested/pending-approval bank lines exist in period
+- `BANK_RECONCILIATION_NOT_STARTED` warning when accounts exist but no import in period
+
+## Phase 7 — Notifications, Practice Workflow & Client Communication
+
+**Status:** complete
+
+Accountants and administrators see actionable cross-module work; clients receive structured document requests; notifications persist in-app with optional email delivery.
+
+### Completed
+
+- Flyway `V22__practice_workflow_phase7.sql`: notification fields, `notification_deliveries`, `notification_preferences`, primary accountant, document request reminders
+- `NotificationDispatcher` with dedupe keys, preferences, delivery records
+- `WorkflowNotificationService` + `NotificationRecipientResolver` + event listeners
+- Notification API: list, unread count, mark one/all read, preferences
+- `PracticeWorkQueueService` + `PracticeWorkQueryRepository` (derived work, no duplicate task DB)
+- Work APIs: summary, my work, portfolio, staff workload
+- Document request enhancements: title, priority, remind endpoint, templates
+- Primary accountant assignment on clients
+- SMTP email provider (`APP_EMAIL_PROVIDER=smtp`) + log provider
+- Daily overdue document request scheduler
+- Activity feed from audit log (`/api/v1/activity`)
+- Angular: notification bell, `/app/notifications`, `/app/work`, dashboard workflow cards, owner documents-needed UX
+- Docs: `docs/PRACTICE_WORKFLOW.md`
+
+### Notification Events
+
+- `DOCUMENT_UPLOADED`, `DOCUMENT_NEEDS_REVIEW`, `DOCUMENT_PROCESSING_FAILED`
+- `DOCUMENT_REQUEST_CREATED`, `DOCUMENT_REQUEST_UPLOADED`, `DOCUMENT_REQUEST_OVERDUE`
+- `BANK_IMPORT_COMPLETED`, `PERIOD_READY_TO_CLOSE`, `PERIOD_CLOSED`
+
+### Email Configuration
+
+- `APP_EMAIL_PROVIDER=log|smtp`
+- `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`, `MAIL_TLS`
+- `APP_FRONTEND_BASE_URL` for safe email links
+
+### Remaining
+
+- Push/SMS/WhatsApp channels
+- Per-notification-type granular preferences beyond V1 set
+- Dedicated client detail workflow panel (counts available via work/portfolio APIs)
+
+### Known Limitations
+
+- Builds and tests were not executed (project restriction)
+- Period-ready notification fires on readiness check / evaluator hook with dedupe (not continuous polling)
+- Staff workload uses primary-accountant assignment when set; unassigned clients excluded from per-accountant totals
+- SMTP uses Jakarta Mail directly; no vendor-specific SDK
+
+### Important Decisions
+
+- No generic task manager — work items are read models from accounting data
+- BUSINESS_OWNER and UPLOAD_ONLY do not access internal work queue
+- Email failure never rolls back document upload, request creation, or period close
 
 ## Completed
 
@@ -289,7 +396,89 @@ None.
 
 ## Remaining
 
-Phase 6 — Bank Statement Import & Reconciliation. Future work is listed in `docs/PRODUCT_ROADMAP.md`.
+Phase 9 — Security, Automated Testing & Production Hardening. Future product work is listed in `docs/PRODUCT_ROADMAP.md`.
+
+## Phase 8 — SaaS Plans, Firm Settings & Subscription Controls
+
+**Status:** complete
+
+### Completed
+
+- `subscription_plans` catalog seeded (`STARTER`, `PRACTICE`, `PROFESSIONAL`) — Flyway `V23__saas_plans_phase8.sql`
+- `FirmSubscription` lifecycle fields, `plan_change_requests`, denormalized limits per firm
+- Default subscription on firm registration (`TRIAL` + configurable plan/trial days)
+- `UsageService` / `UsageQueryRepository` for clients, users, documents, AI, storage
+- `SubscriptionAccessService` central write and quota guard
+- Server-side enforcement: clients, users, documents, storage, AI skip-with-manual-fallback
+- `GET /api/v1/subscription`, `/usage`, upgrade request workflow
+- Platform admin APIs (`/api/v1/platform/*`) with email allowlist separation from firm `ADMIN`
+- Firm settings validation (currency, timezone), `/api/v1/settings/firm` alias, `FIRM_SETTINGS_UPDATED` audit
+- Phase 7 notifications for usage thresholds, trial ending, suspension
+- `SubscriptionMaintenanceScheduler` for trial expiry, period rollover, threshold notifications
+- `ManualBillingProvider` abstraction (no payment processing)
+- Angular: firm settings tabs, subscription usage page, platform admin area, dashboard/shell warnings
+- Documentation: `docs/SAAS_SUBSCRIPTIONS.md`, `docs/FIRM_SETTINGS.md`
+
+### Known Limitations
+
+- Builds and tests were not executed (project restriction)
+- No Stripe/payment provider; plan changes are manual via platform admin
+- Plan catalog is seeded/mutable in DB but not exposed as a self-service plan editor UI
+- Custom per-firm limit overrides are not implemented
+- Concurrent quota races are mitigated by transactional checks only (no row-level locking)
+- Feature entitlements exist as plan metadata strings but V1 differentiation is primarily usage limits
+- Financial year setting does not yet alter close period generation
+
+### Important Decisions
+
+- Extended existing `firm_subscriptions` from V15 rather than replacing it
+- Limits copied to subscription row on plan apply (downgrade-safe, no data deletion)
+- Trial expiry → `SUSPENDED` read-only, not data purge
+- AI quota exhaustion skips extraction; upload and manual workflow always continue
+- Platform admin uses persisted `platform_admin_grants` (Phase 9); bootstrap email only seeds first grant
+- `BUSINESS_OWNER` sees generic upload-unavailable message for quota errors
+
+## Phase 9 — Security, Automated Testing & Production Hardening
+
+**Status:** partially complete (H2 + build gates green; Postgres/Testcontainers skipped — no Docker on test host)
+
+### Completed
+
+- **Platform admin hardening:** `V24__platform_admin_grants.sql`, `PlatformAdminService`, bootstrap via `APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL`, grant/revoke APIs with audit
+- **Auth security:** `AuthRateLimiter`, `ProductionJwtSecretValidator`, JWT filter loads user+role eagerly (`findDetailedById`) for `open-in-view=false`
+- **Quota concurrency:** pessimistic lock on firm subscription row in `SubscriptionAccessService`
+- **Test infrastructure:** Testcontainers BOM, `integrationtest` profile, JaCoCo, `BaseWebIntegrationTest`, `TestReferenceDataConfig`
+- **Integration tests:** Flyway, tenant isolation, JWT, platform admin, file upload, quota concurrency, client/category, financial lifecycle + P&L
+- **Exception handling:** `HttpMessageNotReadableException` → 400 for malformed JSON/enums
+- **Reporting fix:** UUID byte[] handling in `ReportingQueryRepository` for H2 native queries
+- **AI wiring:** conditional OpenAI bean; `ObjectMapper` bean in `AiModuleConfig`
+- **Frontend:** production build fixed (`angular.json`, `inject()` form init), Vitest auth tests
+- **Documentation:** `docs/SECURITY.md`, `docs/TESTING.md`, `docs/PRODUCTION_READINESS.md`, `docs/TEST_RESULTS.md`
+
+### Tests Executed
+
+| Suite | Result |
+|-------|--------|
+| Backend `:platform-app:test` | PASS — 52 run, 0 failed, 12 skipped |
+| Backend `:platform-app:build` | PASS |
+| Frontend `npm run build` | PASS |
+| Frontend `npm test` | PASS — 2 tests |
+| Postgres/Testcontainers | SKIPPED (Docker unavailable) |
+| Docker image build | NOT RUN |
+
+### Security Fixes
+
+- JWT authentication failed silently when lazy `Role` could not load (production bug with `open-in-view=false`)
+- Platform admin no longer authorized by email allowlist on every request
+- Malformed request bodies returned 500 instead of 400
+
+### Remaining Limitations
+
+- Postgres-backed suites require Docker to execute locally/CI
+- Full Phase 9 test matrix (golden-path E2E, exhaustive IDOR per resource, AI prompt-injection suite, period-close banking matrix) not fully implemented
+- Document quota concurrent race documented as softer guarantee than client/user limits
+- Frontend test coverage is minimal (auth service only)
+- `npm audit` reports dependency vulnerabilities — review before production
 
 ## Important Decisions
 
@@ -300,11 +489,11 @@ Phase 6 — Bank Statement Import & Reconciliation. Future work is listed in `do
 - `UPLOAD_ONLY` is valid only for `BUSINESS_OWNER` and cannot access ledger or reports.
 - Defaults: currency `LKR`, timezone `Asia/Colombo`.
 - Swagger is enabled for the `local` profile only.
+- SaaS subscription limits are enforced server-side (Phase 8).
 
 ## Known Limitations
 
-- Automated tests and builds were not executed (project restriction).
+- Postgres integration tests require Docker (12 tests skipped when unavailable).
 - SMTP adapter logs intent only; wire a mail sender when credentials exist.
 - OpenAI-compatible extraction can send images to a vision model; PDFs are not rasterized in V1.
-- SaaS limits are stored but not yet hard-enforced on every write path.
 - PDF report generation was intentionally skipped.

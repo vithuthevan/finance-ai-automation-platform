@@ -29,14 +29,12 @@ Statuses:
 - Failed AI extraction **only if** the document is still unlinked (manual link after failure does not block)
 - Unlinked financial documents (`RECEIPT`, `INVOICE`, `PURCHASE_INVOICE`, `SALES_INVOICE`, `CREDIT_NOTE`). `OTHER` is not an automatic blocker
 - Open or uploaded (not completed) document requests for the period
+- Unmatched, suggested, or pending-approval bank transactions in the period when the client has bank accounts and imported statement data
 
 ### Warnings (do not prevent close)
 
 - Approved transactions with no supporting document. Some legitimate entries need no receipt. Later firm policy can raise this to a blocker.
-
-### Disabled until a later phase
-
-- `BANK_RECONCILIATION_COMPLETE` is a hook only. Unmatched bank lines **do not** block close.
+- Bank account configured but no statement imported for the period
 
 ### Percentage
 

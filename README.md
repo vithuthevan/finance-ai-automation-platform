@@ -130,5 +130,6 @@ Base path: `/api/v1`
 
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 - [Month-end close](docs/CLOSE.md)
+- [Bank reconciliation](docs/BANK_RECONCILIATION.md)
 - [Product roadmap](docs/PRODUCT_ROADMAP.md)
 - [Deployment](docs/DEPLOYMENT.md)
