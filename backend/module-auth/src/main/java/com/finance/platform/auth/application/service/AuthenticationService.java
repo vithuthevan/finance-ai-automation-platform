@@ -9,6 +9,7 @@ import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
 import com.finance.platform.core.audit.AuditOutcome;
 import com.finance.platform.core.audit.AuditResourceType;
+import com.finance.platform.auth.infrastructure.security.AuthRateLimiter;
 import com.finance.platform.core.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -34,9 +35,11 @@ public class AuthenticationService {
 	private final SessionService sessionService;
 	private final AuditLogger auditLogger;
 	private final com.finance.platform.auth.api.UserFacade userFacade;
+	private final AuthRateLimiter authRateLimiter;
 
 	@Transactional
 	public LoginResponse login(LoginRequest request) {
+		authRateLimiter.checkAllowed("login:" + request.email());
 		Optional<User> existingUser = userRepository.findByEmailAndDeletedAtIsNull(request.email());
 
 		try {

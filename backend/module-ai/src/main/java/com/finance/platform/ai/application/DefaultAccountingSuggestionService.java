@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.finance.platform.ai.provider.OpenAiCompatibleExtractionProvider;
 import com.finance.platform.finance.domain.model.Category;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DefaultAccountingSuggestionService implements AccountingSuggestionService {
 
-	private final OpenAiCompatibleExtractionProvider openAiProvider;
+	private final ObjectProvider<OpenAiCompatibleExtractionProvider> openAiProvider;
 
 	@Override
 	public AccountingSuggestion suggest(ExtractedDocument extracted, List<Category> validCategories, Category historical) {
@@ -30,7 +31,10 @@ public class DefaultAccountingSuggestionService implements AccountingSuggestionS
 			return toSuggestion(extracted, byCode, type, extracted != null ? extracted.overallConfidence() : null,
 					"Resolved extracted category code against the client chart", "EXTRACTED_CODE");
 		}
-		Optional<JsonNode> llm = openAiProvider.suggestCategory(extracted, validCategories);
+		OpenAiCompatibleExtractionProvider llmProvider = openAiProvider.getIfAvailable();
+		Optional<JsonNode> llm = llmProvider == null
+				? Optional.empty()
+				: llmProvider.suggestCategory(extracted, validCategories);
 		if (llm.isPresent()) {
 			JsonNode node = llm.get();
 			String llmType = normalizeType(text(node, "transactionType"), extracted);

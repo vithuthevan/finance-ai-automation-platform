@@ -6,7 +6,9 @@ import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
 import com.finance.platform.core.audit.AuditResourceType;
+import com.finance.platform.core.event.DomainEventPublisher;
 import com.finance.platform.core.exception.ErrorCodes;
+import com.finance.platform.finance.application.event.DocumentProcessingFailedEvent;
 import com.finance.platform.finance.domain.model.AiExtractionMetadata;
 import com.finance.platform.finance.domain.model.DocumentProcessingAttempt;
 import com.finance.platform.finance.domain.model.Receipt;
@@ -37,6 +39,7 @@ public class DocumentAiPersistenceService {
 	private final AiProperties aiProperties;
 	private final AuditLogger auditLogger;
 	private final ObjectMapper objectMapper;
+	private final DomainEventPublisher eventPublisher;
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public int markProcessing(UUID receiptId) {
@@ -130,6 +133,10 @@ public class DocumentAiPersistenceService {
 		receiptRepository.save(current);
 		saveAttempt(current, attemptNo, started, "FAILED", code, safeMessage(message), null, null);
 		audit(current, AuditAction.DOCUMENT_EXTRACTION_FAILED, Map.of("failureCode", code));
+		if (current.getClient() != null) {
+			eventPublisher.publish(new DocumentProcessingFailedEvent(
+					current.getId(), current.getClient().getId(), current.getFirmId()));
+		}
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)

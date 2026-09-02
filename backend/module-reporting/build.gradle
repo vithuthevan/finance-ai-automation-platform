@@ -3,5 +3,6 @@ dependencies {
 	implementation project(':module-finance')
 	implementation project(':module-auth')
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.apache.poi:poi-ooxml:5.4.1'
 }

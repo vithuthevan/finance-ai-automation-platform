@@ -19,3 +19,13 @@ app:
     secret: Zm9yLXRlc3QtdXNlLWEtc3Ryb25nLWJhc2U2NC1lbmNvZGVkLXNlY3JldC1rZXk=
     expiration-ms: 3600000
     issuer: finance-platform-test
+  storage:
+    provider: local
+    local:
+      root: ${java.io.tmpdir}/finance-platform-test-storage
+  ai:
+    enabled: false
+    provider: mock
+    extraction-provider: mock
+  email:
+    provider: log

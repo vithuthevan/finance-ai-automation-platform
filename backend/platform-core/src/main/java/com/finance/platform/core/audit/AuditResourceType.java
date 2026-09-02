@@ -14,5 +14,6 @@ public enum AuditResourceType {
 	BANK,
 	NOTIFICATION,
 	SUBSCRIPTION,
-	REPORT
+	REPORT,
+	PLATFORM_ADMIN
 }

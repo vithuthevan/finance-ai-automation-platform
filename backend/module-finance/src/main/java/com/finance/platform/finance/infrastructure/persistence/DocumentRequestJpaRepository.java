@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,4 +33,13 @@ public interface DocumentRequestJpaRepository extends JpaRepository<DocumentRequ
 			@Param("status") DocumentRequest.RequestStatus status,
 			@Param("periodId") UUID periodId,
 			Pageable pageable);
+
+	@Query("""
+			select r from DocumentRequest r
+			join fetch r.client
+			where r.status in (com.finance.platform.finance.domain.model.DocumentRequest.RequestStatus.OPEN, com.finance.platform.finance.domain.model.DocumentRequest.RequestStatus.UPLOADED)
+			  and r.dueDate is not null
+			  and r.dueDate < :today
+			""")
+	List<DocumentRequest> findOverdueOpen(@Param("today") LocalDate today);
 }

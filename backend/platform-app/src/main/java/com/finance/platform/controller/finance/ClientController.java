@@ -59,6 +59,15 @@ public class ClientController {
 		return clientService.update(clientId, request);
 	}
 
+	@PutMapping("/{clientId}/primary-accountant")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ClientResponse assignPrimaryAccountant(
+			@PathVariable UUID clientId,
+			@RequestBody PrimaryAccountantRequest request
+	) {
+		return clientService.assignPrimaryAccountant(clientId, request.accountantUserId());
+	}
+
 	@PostMapping("/{clientId}/activate")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ClientResponse activateClient(@PathVariable UUID clientId) {
@@ -69,5 +78,8 @@ public class ClientController {
 	@PreAuthorize("hasRole('ADMIN')")
 	public ClientResponse deactivateClient(@PathVariable UUID clientId) {
 		return clientService.setActive(clientId, false);
+	}
+
+	public record PrimaryAccountantRequest(UUID accountantUserId) {
 	}
 }

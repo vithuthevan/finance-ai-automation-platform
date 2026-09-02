@@ -5,10 +5,9 @@ import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
 import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.exception.DuplicateResourceException;
+import com.finance.platform.finance.application.subscription.SubscriptionService;
 import com.finance.platform.finance.domain.model.Firm;
-import com.finance.platform.finance.domain.model.FirmSubscription;
 import com.finance.platform.finance.infrastructure.persistence.FirmJpaRepository;
-import com.finance.platform.finance.infrastructure.persistence.FirmSubscriptionJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +20,7 @@ import java.util.Map;
 public class FirmService {
 
 	private final FirmJpaRepository firmRepository;
-	private final FirmSubscriptionJpaRepository subscriptionRepository;
+	private final SubscriptionService subscriptionService;
 	private final AuditLogger auditLogger;
 
 	@Transactional
@@ -37,11 +36,7 @@ public class FirmService {
 				.build();
 
 		Firm saved = firmRepository.save(firm);
-		subscriptionRepository.save(FirmSubscription.builder()
-				.firmId(saved.getId())
-				.planCode("STANDARD")
-				.status(FirmSubscription.SubscriptionStatus.TRIAL)
-				.build());
+		subscriptionService.createDefaultForFirm(saved.getId());
 		Map<String, Object> after = new LinkedHashMap<>();
 		after.put("name", saved.getName());
 		after.put("registrationNo", saved.getRegistrationNo());

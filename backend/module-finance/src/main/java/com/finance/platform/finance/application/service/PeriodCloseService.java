@@ -18,6 +18,8 @@ import com.finance.platform.finance.domain.model.AccountingPeriod;
 import com.finance.platform.finance.domain.model.Client;
 import com.finance.platform.finance.infrastructure.persistence.AccountingPeriodJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ClientJpaRepository;
+import com.finance.platform.finance.application.workflow.PeriodReadinessNotifier;
+import com.finance.platform.finance.application.workflow.WorkflowNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -45,6 +47,8 @@ public class PeriodCloseService {
 	private final ClientAccessService clientAccessService;
 	private final CloseReadinessService closeReadinessService;
 	private final AuditLogger auditLogger;
+	private final WorkflowNotificationService workflowNotificationService;
+	private final PeriodReadinessNotifier periodReadinessNotifier;
 
 	@Transactional(readOnly = true)
 	public List<PeriodResponse> list(UUID clientId) {
@@ -64,7 +68,12 @@ public class PeriodCloseService {
 	@Transactional(readOnly = true)
 	public PeriodReadinessResponse readiness(UUID clientId, UUID periodId) {
 		clientAccessService.requireReadAccess(clientId);
-		return evaluate(requirePeriod(clientId, periodId));
+		AccountingPeriod period = requirePeriod(clientId, periodId);
+		PeriodReadinessResponse response = evaluate(period);
+		if (response.ready() && !period.isClosed()) {
+			periodReadinessNotifier.checkAndNotify(period.getFirmId(), clientId);
+		}
+		return response;
 	}
 
 	@Transactional
@@ -140,6 +149,7 @@ public class PeriodCloseService {
 						"closeNote", saved.getCloseNote() == null ? "" : saved.getCloseNote()
 				))
 				.build());
+		workflowNotificationService.periodClosed(saved.getFirmId(), clientId, saved.getId());
 		return toResponse(saved, client, evaluate(saved));
 	}
 

@@ -5,6 +5,7 @@ import com.finance.platform.ai.provider.MockExtractionProvider;
 import com.finance.platform.ai.provider.OpenAiCompatibleExtractionProvider;
 import com.finance.platform.core.exception.ErrorCodes;
 import com.finance.platform.core.storage.FileStorageService;
+import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.finance.application.service.CategorySuggestionService;
 import com.finance.platform.finance.domain.model.Category;
 import com.finance.platform.finance.domain.model.Firm;
@@ -14,6 +15,7 @@ import com.finance.platform.finance.infrastructure.persistence.FirmJpaRepository
 import com.finance.platform.finance.infrastructure.persistence.ReceiptJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -37,7 +39,7 @@ public class DocumentAiProcessor {
 	);
 
 	private final AiProperties aiProperties;
-	private final OpenAiCompatibleExtractionProvider openAiProvider;
+	private final ObjectProvider<OpenAiCompatibleExtractionProvider> openAiProvider;
 	private final MockExtractionProvider mockExtractionProvider;
 	private final AccountingSuggestionService accountingSuggestionService;
 	private final DocumentAiPersistenceService persistenceService;
@@ -46,6 +48,7 @@ public class DocumentAiProcessor {
 	private final CategoryJpaRepository categoryRepository;
 	private final FileStorageService fileStorageService;
 	private final CategorySuggestionService categorySuggestionService;
+	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
 
 	public void process(UUID receiptId) {
 		Receipt loaded = receiptRepository.findDetailedById(receiptId).orElse(null);
@@ -72,7 +75,21 @@ public class DocumentAiProcessor {
 				persistenceService.completeDisabled(receiptId, attemptNo, started);
 				return;
 			}
-			DocumentExtractionService extractor = aiProperties.isMockExtraction() ? mockExtractionProvider : openAiProvider;
+			if (!subscriptionQuotaGuard.canProcessAi(receipt.getFirmId())) {
+				persistenceService.completeSkipped(receiptId, attemptNo, started, ErrorCodes.PLAN_AI_LIMIT_REACHED,
+						subscriptionQuotaGuard.aiQuotaMessage(receipt.getFirmId()));
+				return;
+			}
+			DocumentExtractionService extractor;
+			if (aiProperties.isMockExtraction()) {
+				extractor = mockExtractionProvider;
+			} else {
+				extractor = openAiProvider.getIfAvailable();
+				if (extractor == null) {
+					persistenceService.completeDisabled(receiptId, attemptNo, started);
+					return;
+				}
+			}
 			byte[] content = readAll(fileStorageService.open(receipt.getStorageKey()));
 			Optional<ExtractedDocument> extracted = extractor instanceof OpenAiCompatibleExtractionProvider openAi
 					? openAi.extract(content, receipt.getFileName(), receipt.getMimeType(),

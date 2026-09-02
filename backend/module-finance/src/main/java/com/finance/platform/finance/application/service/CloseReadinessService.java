@@ -11,6 +11,8 @@ import com.finance.platform.finance.application.dto.PeriodLedgerSummaryResponse;
 import com.finance.platform.finance.application.dto.PeriodReadinessResponse;
 import com.finance.platform.finance.application.dto.PeriodReadinessSummaryResponse;
 import com.finance.platform.finance.domain.model.Receipt;
+import com.finance.platform.finance.infrastructure.persistence.BankAccountJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.BankTransactionJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.CloseReadinessQueryRepository;
 import com.finance.platform.finance.infrastructure.persistence.CloseReadinessQueryRepository.StatusMoney;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,8 @@ public class CloseReadinessService {
 
 	private final List<CloseCheck> checks;
 	private final CloseReadinessQueryRepository queries;
+	private final BankAccountJpaRepository bankAccountRepository;
+	private final BankTransactionJpaRepository bankTransactionRepository;
 
 	public PeriodReadinessResponse evaluate(UUID firmId, UUID clientId, UUID periodId, LocalDate from, LocalDate to) {
 		CloseCheckContext context = new CloseCheckContext(firmId, clientId, periodId, from, to);
@@ -85,6 +89,24 @@ public class CloseReadinessService {
 		long supportedExpenses = queries.countApprovedWithDocuments("expenses", firmId, clientId, from, to);
 		long supportedIncome = queries.countApprovedWithDocuments("income", firmId, clientId, from, to);
 
+		long bankAccounts = bankAccountRepository.countByClient_IdAndActiveTrue(clientId);
+		long bankTransactions = bankTransactionRepository.countImportedInPeriod(clientId, from, to);
+		long matchedBank = bankTransactionRepository.countByClientAndPeriodAndStatus(
+				clientId, from, to, com.finance.platform.finance.domain.model.BankTransaction.MatchStatus.MATCHED);
+		long unmatchedBank = bankTransactionRepository.countByClientAndPeriodAndStatus(
+				clientId, from, to, com.finance.platform.finance.domain.model.BankTransaction.MatchStatus.UNMATCHED)
+				+ bankTransactionRepository.countByClientAndPeriodAndStatus(
+				clientId, from, to, com.finance.platform.finance.domain.model.BankTransaction.MatchStatus.SUGGESTED)
+				+ bankTransactionRepository.countByClientAndPeriodAndStatus(
+				clientId, from, to, com.finance.platform.finance.domain.model.BankTransaction.MatchStatus.PENDING_APPROVAL);
+		Integer reconciliationPercent = null;
+		if (bankTransactions > 0) {
+			long ignored = bankTransactionRepository.countByClientAndPeriodAndStatus(
+					clientId, from, to, com.finance.platform.finance.domain.model.BankTransaction.MatchStatus.IGNORED);
+			long actionable = bankTransactions - ignored;
+			reconciliationPercent = actionable == 0 ? 100 : (int) Math.round((matchedBank + ignored) * 100.0 / actionable);
+		}
+
 		return new PeriodReadinessResponse(
 				ready,
 				percent,
@@ -100,7 +122,12 @@ public class CloseReadinessService {
 						unlinked,
 						openRequests,
 						unsupportedExpenses + unsupportedIncome,
-						supportedExpenses + supportedIncome
+						supportedExpenses + supportedIncome,
+						bankAccounts,
+						bankTransactions,
+						matchedBank,
+						unmatchedBank,
+						reconciliationPercent
 				),
 				new PeriodLedgerSummaryResponse(
 						draftExp.count(),

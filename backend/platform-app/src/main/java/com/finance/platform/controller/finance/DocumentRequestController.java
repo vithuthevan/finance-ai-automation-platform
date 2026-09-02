@@ -58,7 +58,21 @@ public class DocumentRequestController {
 	@Operation(summary = "Request missing evidence from the client owner")
 	public DocumentRequestView create(@PathVariable UUID clientId, @RequestBody CreateRequest body) {
 		return DocumentRequestView.from(documentRequestService.create(
-				clientId, body.description(), body.documentType(), body.dueDate(), body.assigneeUserId(), body.periodId()));
+				clientId,
+				body.title(),
+				body.description(),
+				body.documentType(),
+				body.dueDate(),
+				body.priority(),
+				body.assigneeUserId(),
+				body.periodId()));
+	}
+
+	@PostMapping("/{requestId}/remind")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
+	@Operation(summary = "Send a reminder for an open document request")
+	public DocumentRequestView remind(@PathVariable UUID clientId, @PathVariable UUID requestId) {
+		return DocumentRequestView.from(documentRequestService.remind(clientId, requestId));
 	}
 
 	@PostMapping("/{requestId}/attach")
@@ -99,9 +113,11 @@ public class DocumentRequestController {
 	}
 
 	public record CreateRequest(
+			String title,
 			@NotBlank String description,
 			Receipt.DocumentType documentType,
 			LocalDate dueDate,
+			DocumentRequest.RequestPriority priority,
 			UUID assigneeUserId,
 			UUID periodId
 	) {
@@ -114,26 +130,34 @@ public class DocumentRequestController {
 			UUID id,
 			UUID clientId,
 			UUID periodId,
+			String title,
 			String description,
 			Receipt.DocumentType documentType,
 			LocalDate dueDate,
+			DocumentRequest.RequestPriority priority,
 			DocumentRequest.RequestStatus status,
 			UUID assigneeUserId,
 			UUID uploadedDocumentId,
-			Instant completedAt
+			Instant completedAt,
+			int reminderCount,
+			Instant lastReminderAt
 	) {
 		static DocumentRequestView from(DocumentRequest request) {
 			return new DocumentRequestView(
 					request.getId(),
 					request.getClient().getId(),
 					request.getPeriod() == null ? null : request.getPeriod().getId(),
+					request.getTitle(),
 					request.getDescription(),
 					request.getDocumentType(),
 					request.getDueDate(),
+					request.getPriority(),
 					request.getStatus(),
 					request.getAssigneeUserId(),
 					request.getUploadedDocumentId(),
-					request.getCompletedAt()
+					request.getCompletedAt(),
+					request.getReminderCount(),
+					request.getLastReminderAt()
 			);
 		}
 	}

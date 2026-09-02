@@ -107,8 +107,8 @@ public class ReportingFacadeImpl implements ReportingFacade {
 		DocumentSupportSummary documents = generateDocumentSupport(clientId, from, to);
 		TransactionStatusSummary statuses = generateStatusSummary(clientId);
 		long drafts = statuses.draftExpenses() + statuses.draftIncome();
-		long unreconciled = bankTransactionRepository.countByClientIdAndMatchStatus(clientId, BankTransaction.MatchStatus.UNMATCHED)
-				+ bankTransactionRepository.countByClientIdAndMatchStatus(clientId, BankTransaction.MatchStatus.SUGGESTED);
+		long unreconciled = bankTransactionRepository.countByClient_IdAndMatchStatus(clientId, BankTransaction.MatchStatus.UNMATCHED)
+				+ bankTransactionRepository.countByClient_IdAndMatchStatus(clientId, BankTransaction.MatchStatus.SUGGESTED);
 		List<String> blockers = new ArrayList<>();
 		if (documents.documentsAwaitingReview() > 0) {
 			blockers.add(documents.documentsAwaitingReview() + " documents need review");

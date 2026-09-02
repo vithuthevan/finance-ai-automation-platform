@@ -34,6 +34,16 @@ public final class ErrorCodes {
 	public static final String DOCUMENT_ALREADY_LINKED = "DOCUMENT_ALREADY_LINKED";
 	public static final String DOCUMENT_CLIENT_MISMATCH = "DOCUMENT_CLIENT_MISMATCH";
 	public static final String RECONCILIATION_CONFLICT = "RECONCILIATION_CONFLICT";
+	public static final String BANK_ACCOUNT_NOT_FOUND = "BANK_ACCOUNT_NOT_FOUND";
+	public static final String BANK_IMPORT_NOT_FOUND = "BANK_IMPORT_NOT_FOUND";
+	public static final String BANK_IMPORT_INVALID = "BANK_IMPORT_INVALID";
+	public static final String BANK_IMPORT_DUPLICATE = "BANK_IMPORT_DUPLICATE";
+	public static final String BANK_IMPORT_MAPPING_INVALID = "BANK_IMPORT_MAPPING_INVALID";
+	public static final String BANK_TRANSACTION_NOT_FOUND = "BANK_TRANSACTION_NOT_FOUND";
+	public static final String BANK_TRANSACTION_ALREADY_MATCHED = "BANK_TRANSACTION_ALREADY_MATCHED";
+	public static final String BANK_TRANSACTION_CLIENT_MISMATCH = "BANK_TRANSACTION_CLIENT_MISMATCH";
+	public static final String INVALID_RECONCILIATION_DIRECTION = "INVALID_RECONCILIATION_DIRECTION";
+	public static final String RECONCILIATION_ALREADY_CONFIRMED = "RECONCILIATION_ALREADY_CONFIRMED";
 	public static final String REPORT_CLIENT_NOT_FOUND = "REPORT_CLIENT_NOT_FOUND";
 	public static final String INVALID_REPORT_PERIOD = "INVALID_REPORT_PERIOD";
 	public static final String REPORT_ACCESS_DENIED = "REPORT_ACCESS_DENIED";
@@ -48,6 +58,21 @@ public final class ErrorCodes {
 	public static final String AI_PROVIDER_TIMEOUT = "AI_PROVIDER_TIMEOUT";
 	public static final String AI_RATE_LIMITED = "AI_RATE_LIMITED";
 	public static final String AI_REVIEW_REQUIRED = "AI_REVIEW_REQUIRED";
+	public static final String REMINDER_TOO_SOON = "REMINDER_TOO_SOON";
+	public static final String INVALID_CLIENT_ASSIGNMENT = "INVALID_CLIENT_ASSIGNMENT";
+	public static final String EMAIL_DELIVERY_FAILED = "EMAIL_DELIVERY_FAILED";
+	public static final String PLAN_CLIENT_LIMIT_REACHED = "PLAN_CLIENT_LIMIT_REACHED";
+	public static final String PLAN_USER_LIMIT_REACHED = "PLAN_USER_LIMIT_REACHED";
+	public static final String PLAN_DOCUMENT_LIMIT_REACHED = "PLAN_DOCUMENT_LIMIT_REACHED";
+	public static final String PLAN_AI_LIMIT_REACHED = "PLAN_AI_LIMIT_REACHED";
+	public static final String PLAN_STORAGE_LIMIT_REACHED = "PLAN_STORAGE_LIMIT_REACHED";
+	public static final String SUBSCRIPTION_NOT_FOUND = "SUBSCRIPTION_NOT_FOUND";
+	public static final String SUBSCRIPTION_INACTIVE = "SUBSCRIPTION_INACTIVE";
+	public static final String SUBSCRIPTION_SUSPENDED = "SUBSCRIPTION_SUSPENDED";
+	public static final String PLAN_NOT_FOUND = "PLAN_NOT_FOUND";
+	public static final String INVALID_TIMEZONE = "INVALID_TIMEZONE";
+	public static final String INVALID_CURRENCY = "INVALID_CURRENCY";
+	public static final String UPLOADS_UNAVAILABLE = "UPLOADS_UNAVAILABLE";
 
 	private ErrorCodes() {
 	}

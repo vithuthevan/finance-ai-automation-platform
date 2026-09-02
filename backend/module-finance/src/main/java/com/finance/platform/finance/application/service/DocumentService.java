@@ -12,6 +12,7 @@ import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.dto.PageRequests;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.event.DomainEventPublisher;
+import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.DuplicateDocumentException;
 import com.finance.platform.core.exception.ErrorCodes;
@@ -72,6 +73,7 @@ public class DocumentService {
 	private final DomainEventPublisher eventPublisher;
 	private final AuditLogger auditLogger;
 	private final DocumentProcessingAttemptJpaRepository attemptRepository;
+	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
 
 	@Transactional
 	public DocumentResponse upload(
@@ -86,6 +88,7 @@ public class DocumentService {
 		Client client = clientAccessService.requireUploadAccess(clientId);
 		User uploader = clientAccessService.requireCurrentUserEntity();
 		validateFile(content, originalFilename);
+		assertUploadAllowed(client.getFirmId(), content.length);
 
 		String checksum = sha256(content);
 		Receipt existing = receiptRepository
@@ -660,6 +663,19 @@ public class DocumentService {
 			throw new ValidationException("reason", "A rejection reason is required");
 		}
 		return trimmed;
+	}
+
+	private void assertUploadAllowed(UUID firmId, long incomingBytes) {
+		try {
+			subscriptionQuotaGuard.assertCanUploadDocument(firmId, incomingBytes);
+		} catch (BusinessException ex) {
+			SecurityUser user = SecurityUtils.requireCurrentUser();
+			if (user.getRole() == Role.RoleCode.BUSINESS_OWNER) {
+				throw new BusinessException(ErrorCodes.UPLOADS_UNAVAILABLE,
+						"Document uploads are temporarily unavailable. Please contact your accounting firm.");
+			}
+			throw ex;
+		}
 	}
 
 	private static String trimToNull(String value) {

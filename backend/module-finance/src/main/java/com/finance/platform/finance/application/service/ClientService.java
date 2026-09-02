@@ -2,6 +2,8 @@ package com.finance.platform.finance.application.service;
 
 import com.finance.platform.auth.api.UserFacade;
 import com.finance.platform.auth.domain.model.Role;
+import com.finance.platform.auth.domain.model.User;
+import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
 import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.audit.AuditAction;
@@ -15,6 +17,7 @@ import com.finance.platform.core.exception.ResourceNotFoundException;
 import com.finance.platform.core.dto.PageRequests;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.ValidationException;
+import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.core.security.FirmClientLookup;
 import com.finance.platform.finance.application.dto.ClientResponse;
 import com.finance.platform.finance.application.dto.CreateClientRequest;
@@ -39,7 +42,9 @@ public class ClientService implements FirmClientLookup {
 
 	private final ClientJpaRepository clientRepository;
 	private final UserFacade userFacade;
+	private final UserJpaRepository userRepository;
 	private final AuditLogger auditLogger;
+	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
 
 	@Transactional(readOnly = true)
 	public PageResponse<ClientResponse> listAccessibleClients(int page, int size) {
@@ -76,6 +81,7 @@ public class ClientService implements FirmClientLookup {
 
 		String name = requireName(request.name());
 		UUID firmId = currentUser.getFirmId();
+		subscriptionQuotaGuard.assertCanCreateActiveClient(firmId);
 		if (clientRepository.existsByFirmIdAndNameAndDeletedAtIsNull(firmId, name)) {
 			throw new DuplicateResourceException("Client", "name", name);
 		}
@@ -135,6 +141,9 @@ public class ClientService implements FirmClientLookup {
 		assertAdmin(currentUser);
 		Client client = findFirmClient(clientId, currentUser.getFirmId());
 		Map<String, Object> before = clientSnapshot(client);
+		if (active && !client.isActive()) {
+			subscriptionQuotaGuard.assertCanCreateActiveClient(currentUser.getFirmId());
+		}
 		client.setActive(active);
 		Client saved = clientRepository.save(client);
 		auditLogger.record(AuditEvent.fromTenant()
@@ -145,6 +154,32 @@ public class ClientService implements FirmClientLookup {
 				.clientId(saved.getId())
 				.beforeState(before)
 				.afterState(clientSnapshot(saved))
+				.build());
+		return toResponse(saved);
+	}
+
+	@Transactional
+	public ClientResponse assignPrimaryAccountant(UUID clientId, UUID accountantUserId) {
+		SecurityUser currentUser = SecurityUtils.requireCurrentUser();
+		assertAdmin(currentUser);
+		Client client = findFirmClient(clientId, currentUser.getFirmId());
+		if (accountantUserId != null) {
+			User accountant = userRepository.findByIdAndFirmIdAndDeletedAtIsNull(accountantUserId, currentUser.getFirmId())
+					.orElseThrow(() -> new BusinessException(ErrorCodes.INVALID_CLIENT_ASSIGNMENT, "Accountant must belong to this firm"));
+			Role.RoleCode role = accountant.getRole().getCode();
+			if (role != Role.RoleCode.ACCOUNTANT && role != Role.RoleCode.ADMIN) {
+				throw new BusinessException(ErrorCodes.INVALID_CLIENT_ASSIGNMENT, "Primary accountant must be an accountant or administrator");
+			}
+		}
+		client.setPrimaryAccountantUserId(accountantUserId);
+		Client saved = clientRepository.save(client);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(saved.getFirmId())
+				.action(AuditAction.PRIMARY_ACCOUNTANT_ASSIGNED)
+				.resourceType(AuditResourceType.CLIENT)
+				.resourceId(saved.getId())
+				.clientId(saved.getId())
+				.afterState(Map.of("primaryAccountantUserId", accountantUserId == null ? "" : accountantUserId.toString()))
 				.build());
 		return toResponse(saved);
 	}
@@ -196,7 +231,8 @@ public class ClientService implements FirmClientLookup {
 				client.getName(),
 				client.getBusinessRegNo(),
 				client.getContactEmail(),
-				client.isActive()
+				client.isActive(),
+				client.getPrimaryAccountantUserId()
 		);
 	}
 

@@ -55,7 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private void authenticateIfValid(HttpServletRequest request, String token) {
 		try {
 			JwtTokenProvider.JwtClaims claims = jwtTokenProvider.parseToken(token);
-			userRepository.findById(claims.userId())
+			userRepository.findDetailedById(claims.userId())
 					.filter(this::isActiveUser)
 					.filter(user -> user.getFirmId().equals(claims.firmId()))
 					.ifPresent(user -> setAuthenticatedUser(request, user));

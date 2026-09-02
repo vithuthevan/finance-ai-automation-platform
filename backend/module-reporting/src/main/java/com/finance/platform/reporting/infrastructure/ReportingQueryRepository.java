@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.nio.ByteBuffer;
 
 @Repository
 @RequiredArgsConstructor
@@ -268,6 +269,10 @@ public class ReportingQueryRepository {
 		}
 		if (value instanceof UUID uuid) {
 			return uuid;
+		}
+		if (value instanceof byte[] bytes && bytes.length == 16) {
+			ByteBuffer buffer = ByteBuffer.wrap(bytes);
+			return new UUID(buffer.getLong(), buffer.getLong());
 		}
 		return UUID.fromString(value.toString());
 	}

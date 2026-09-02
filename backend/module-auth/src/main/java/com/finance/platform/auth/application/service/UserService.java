@@ -28,6 +28,7 @@ import com.finance.platform.core.exception.ResourceNotFoundException;
 import com.finance.platform.core.dto.PageRequests;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.ValidationException;
+import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.core.security.FirmClientLookup;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -55,6 +56,7 @@ public class UserService {
 	private final PasswordEncoder passwordEncoder;
 	private final AuditLogger auditLogger;
 	private final SessionService sessionService;
+	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
 
 	@Transactional(readOnly = true)
 	public UserProfileResponse getProfile() {
@@ -120,6 +122,7 @@ public class UserService {
 		for (ResolvedAssignment assignment : assignments) {
 			requireActiveClientInCurrentFirm(assignment.clientId(), firmId);
 		}
+		subscriptionQuotaGuard.assertCanCreateActiveUser(firmId);
 
 		User user = User.builder()
 				.role(role)
@@ -201,6 +204,9 @@ public class UserService {
 		}
 		User user = findFirmUser(userId, currentUser.getFirmId());
 		Map<String, Object> before = userSnapshot(user, clientAccessRepository.findByUser_Id(user.getId()));
+		if (active && !user.isActive()) {
+			subscriptionQuotaGuard.assertCanCreateActiveUser(currentUser.getFirmId());
+		}
 		user.setActive(active);
 		if (!active) {
 			user.setDeletedAt(null);

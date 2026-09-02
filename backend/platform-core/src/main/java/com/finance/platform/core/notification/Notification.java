@@ -45,9 +45,24 @@ public class Notification {
 	@Column(nullable = false, columnDefinition = "TEXT")
 	private String message;
 
+	@Column(length = 40)
+	private String resourceType;
+
+	private UUID resourceId;
+
+	@Column(length = 500)
+	private String actionUrl;
+
+	@Column(length = 120)
+	private String dedupeKey;
+
 	private Instant readAt;
 
 	@Column(nullable = false)
 	@Builder.Default
 	private Instant createdAt = Instant.now();
+
+	public boolean isRead() {
+		return readAt != null;
+	}
 }

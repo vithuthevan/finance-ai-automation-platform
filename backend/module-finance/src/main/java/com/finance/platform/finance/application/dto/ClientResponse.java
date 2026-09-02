@@ -8,6 +8,7 @@ public record ClientResponse(
 		String name,
 		String businessRegNo,
 		String contactEmail,
-		boolean active
+		boolean active,
+		UUID primaryAccountantUserId
 ) {
 }

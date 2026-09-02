@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -96,6 +97,15 @@ public class GlobalExceptionHandler {
 				? ex.getMessage()
 				: "You do not have permission to perform this action.");
 		detail.setProperty("errorCode", reportAccessDenied(ex) ? ErrorCodes.REPORT_ACCESS_DENIED : ErrorCodes.ACCESS_DENIED);
+		return detail;
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ProblemDetail handleUnreadableMessage(HttpMessageNotReadableException ex) {
+		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+		detail.setTitle("Validation Failed");
+		detail.setDetail("Request body is malformed or contains invalid values.");
+		detail.setProperty("errorCode", ErrorCodes.VALIDATION_FAILED);
 		return detail;
 	}
 

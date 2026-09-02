@@ -48,6 +48,15 @@ public class ReconciliationMatch extends TenantAwareEntity {
 	@Builder.Default
 	private MatchStatus status = MatchStatus.SUGGESTED;
 
+	@Column(name = "match_score")
+	private Integer matchScore;
+
+	@Column(length = 10)
+	private String confidence;
+
+	@Column(columnDefinition = "TEXT")
+	private String notes;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "confirmed_by")
 	private User confirmedBy;

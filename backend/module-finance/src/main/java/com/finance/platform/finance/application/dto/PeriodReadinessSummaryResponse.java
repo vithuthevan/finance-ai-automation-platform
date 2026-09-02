@@ -8,6 +8,11 @@ public record PeriodReadinessSummaryResponse(
 		long unlinkedDocuments,
 		long openDocumentRequests,
 		long approvedTransactionsWithoutDocuments,
-		long approvedTransactionsWithDocuments
+		long approvedTransactionsWithDocuments,
+		long bankAccounts,
+		long bankTransactions,
+		long matchedBankTransactions,
+		long unmatchedBankTransactions,
+		Integer reconciliationPercent
 ) {
 }

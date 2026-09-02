@@ -15,6 +15,7 @@ import com.finance.platform.core.exception.ErrorCodes;
 import com.finance.platform.finance.domain.model.Category;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -32,6 +33,7 @@ import java.util.Optional;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "app.ai.openai", name = "api-key")
 @RequiredArgsConstructor
 public class OpenAiCompatibleExtractionProvider implements DocumentExtractionService, DocumentClassificationService, TransactionSuggestionService {
 

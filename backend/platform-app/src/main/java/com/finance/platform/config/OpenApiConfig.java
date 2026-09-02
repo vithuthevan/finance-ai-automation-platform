@@ -17,7 +17,7 @@ public class OpenApiConfig {
 				.info(new Info()
 						.title("Finance Platform API")
 						.version("v1")
-						.description("Auth, users, clients, categories, expenses, income, documents, reports, month-end close, and audit. Close: periods, readiness, review, close, reopen, document requests, work-queue. Accept creates DRAFT only. Report dates use ISO-8601 yyyy-MM-dd. Exports: text/csv and XLSX. UPLOAD_ONLY is denied reporting, AI review, and close management.")))
+						.description("Auth, users, clients, categories, expenses, income, documents, reports, month-end close, and audit. Close: periods, readiness, review, close, reopen, document requests, work-queue. Accept creates DRAFT only. Report dates use ISO-8601 yyyy-MM-dd. Exports: text/csv and XLSX. UPLOAD_ONLY is denied reporting, AI review, and close management."))
 				.addSecurityItem(new SecurityRequirement().addList("bearer-jwt"))
 				.components(new Components().addSecuritySchemes("bearer-jwt", new SecurityScheme()
 						.type(SecurityScheme.Type.HTTP)

@@ -9,6 +9,7 @@ import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.exception.ErrorCodes;
 import com.finance.platform.core.exception.ResourceNotFoundException;
+import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.finance.domain.model.Client;
 import com.finance.platform.finance.infrastructure.persistence.ClientJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class ClientAccessService {
 	private final ClientJpaRepository clientRepository;
 	private final UserFacade userFacade;
 	private final UserJpaRepository userRepository;
+	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
 
 	public Client requireAccessibleClient(UUID clientId) {
 		return requireReadAccess(clientId);
@@ -46,6 +48,7 @@ public class ClientAccessService {
 
 	public Client requireWriteAccess(UUID clientId) {
 		Client client = requireReadAccess(clientId);
+		subscriptionQuotaGuard.assertCanWrite(client.getFirmId());
 		assertClientActive(client);
 		UserClientAccess.AccessType accessType = effectiveAccessType(clientId);
 		if (accessType != UserClientAccess.AccessType.FULL) {

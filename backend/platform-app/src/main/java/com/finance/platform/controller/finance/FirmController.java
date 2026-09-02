@@ -9,6 +9,7 @@ import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.ErrorCodes;
 import com.finance.platform.core.exception.ResourceNotFoundException;
+import com.finance.platform.core.exception.ValidationException;
 import com.finance.platform.finance.domain.model.Firm;
 import com.finance.platform.finance.domain.model.FirmSubscription;
 import com.finance.platform.finance.infrastructure.persistence.FirmJpaRepository;
@@ -24,12 +25,23 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
+import java.util.Currency;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/firm")
+@RequestMapping({"/api/v1/firm", "/api/v1/settings/firm"})
 @RequiredArgsConstructor
 public class FirmController {
+
+	private static final Set<String> ALLOWED_CURRENCIES = Currency.getAvailableCurrencies().stream()
+			.map(Currency::getCurrencyCode)
+			.collect(Collectors.toUnmodifiableSet());
 
 	private final FirmJpaRepository firmRepository;
 	private final FirmSubscriptionJpaRepository subscriptionRepository;
@@ -47,16 +59,29 @@ public class FirmController {
 	@Transactional
 	public FirmSettingsResponse update(@RequestBody UpdateFirmRequest request) {
 		Firm firm = requireFirm();
+		Map<String, Object> before = settingsSnapshot(firm);
 		if (request.name() != null && !request.name().isBlank()) {
 			firm.setName(request.name().trim());
 		}
-		if (request.currencyCode() != null && request.currencyCode().length() == 3) {
-			firm.setCurrencyCode(request.currencyCode().toUpperCase());
+		if (request.currencyCode() != null) {
+			String currency = request.currencyCode().trim().toUpperCase();
+			if (currency.length() != 3 || !ALLOWED_CURRENCIES.contains(currency)) {
+				throw new BusinessException(ErrorCodes.INVALID_CURRENCY, "Currency must be a valid ISO 4217 code");
+			}
+			firm.setCurrencyCode(currency);
 		}
 		if (request.timezone() != null && !request.timezone().isBlank()) {
+			try {
+				ZoneId.of(request.timezone().trim());
+			} catch (DateTimeException ex) {
+				throw new BusinessException(ErrorCodes.INVALID_TIMEZONE, "Timezone must be a valid IANA zone name");
+			}
 			firm.setTimezone(request.timezone().trim());
 		}
-		if (request.financialYearStartMonth() != null && request.financialYearStartMonth() >= 1 && request.financialYearStartMonth() <= 12) {
+		if (request.financialYearStartMonth() != null) {
+			if (request.financialYearStartMonth() < 1 || request.financialYearStartMonth() > 12) {
+				throw new ValidationException("financialYearStartMonth", "Must be between 1 and 12");
+			}
 			firm.setFinancialYearStartMonth(request.financialYearStartMonth());
 		}
 		if (request.aiEnabled() != null) {
@@ -65,10 +90,11 @@ public class FirmController {
 		Firm saved = firmRepository.save(firm);
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(saved.getId())
-				.action(AuditAction.FIRM_UPDATED)
+				.action(AuditAction.FIRM_SETTINGS_UPDATED)
 				.resourceType(AuditResourceType.FIRM)
 				.resourceId(saved.getId())
-				.afterState(java.util.Map.of("name", saved.getName(), "currencyCode", saved.getCurrencyCode()))
+				.beforeState(before)
+				.afterState(settingsSnapshot(saved))
 				.build());
 		return toResponse(saved);
 	}
@@ -93,9 +119,19 @@ public class FirmController {
 				firm.getTimezone(),
 				firm.getFinancialYearStartMonth(),
 				firm.isAiEnabled(),
-				subscription == null ? "STANDARD" : subscription.getPlanCode(),
+				subscription == null ? "STARTER" : subscription.getPlanCode(),
 				subscription == null ? "ACTIVE" : subscription.getStatus().name()
 		);
+	}
+
+	private static Map<String, Object> settingsSnapshot(Firm firm) {
+		Map<String, Object> state = new LinkedHashMap<>();
+		state.put("name", firm.getName());
+		state.put("currencyCode", firm.getCurrencyCode());
+		state.put("timezone", firm.getTimezone());
+		state.put("financialYearStartMonth", firm.getFinancialYearStartMonth());
+		state.put("aiEnabled", firm.isAiEnabled());
+		return state;
 	}
 
 	public record UpdateFirmRequest(

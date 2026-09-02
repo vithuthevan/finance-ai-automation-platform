@@ -47,6 +47,20 @@ public class DocumentRequest extends TenantAwareEntity {
 	@Column(nullable = false, columnDefinition = "TEXT")
 	private String description;
 
+	@Column(length = 200)
+	private String title;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 10)
+	@Builder.Default
+	private RequestPriority priority = RequestPriority.NORMAL;
+
+	private Instant lastReminderAt;
+
+	@Column(nullable = false)
+	@Builder.Default
+	private int reminderCount = 0;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	@Builder.Default
@@ -66,5 +80,9 @@ public class DocumentRequest extends TenantAwareEntity {
 
 	public enum RequestStatus {
 		OPEN, UPLOADED, COMPLETED, CANCELLED
+	}
+
+	public enum RequestPriority {
+		LOW, NORMAL, HIGH
 	}
 }

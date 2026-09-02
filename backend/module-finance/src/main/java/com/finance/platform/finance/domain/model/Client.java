@@ -18,6 +18,7 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "clients", uniqueConstraints = @UniqueConstraint(columnNames = {"firm_id", "name"}))
@@ -42,6 +43,9 @@ public class Client extends TenantAwareEntity {
 	private boolean active = true;
 
 	private Instant deletedAt;
+
+	@Column(name = "primary_accountant_user_id")
+	private UUID primaryAccountantUserId;
 
 	@OneToMany(mappedBy = "client")
 	@Builder.Default
