@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard, ledgerGuard, ownerGuard, roleGuard } from './core/auth/auth.guard';
+import { platformGuard } from './core/auth/platform.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'app/dashboard' },
@@ -12,6 +13,8 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/shell.component').then(m => m.ShellComponent),
     children: [
       { path: 'dashboard', canActivate: [ledgerGuard], loadComponent: () => import('./features/dashboard/dashboard.page').then(m => m.DashboardPage) },
+      { path: 'work', canActivate: [roleGuard('ADMIN', 'ACCOUNTANT')], loadComponent: () => import('./features/work/work.page').then(m => m.WorkPage) },
+      { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.page').then(m => m.NotificationsPage) },
       { path: 'clients', canActivate: [roleGuard('ADMIN', 'ACCOUNTANT', 'AUDITOR')], loadComponent: () => import('./features/clients/clients.page').then(m => m.ClientsPage) },
       { path: 'documents', loadComponent: () => import('./features/documents/documents.page').then(m => m.DocumentsPage) },
       { path: 'documents/:clientId/:documentId', loadComponent: () => import('./features/documents/document-review.page').then(m => m.DocumentReviewPage) },
@@ -28,8 +31,18 @@ export const routes: Routes = [
       { path: 'categories', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/categories.page').then(m => m.CategoriesPage) },
       { path: 'audit', canActivate: [roleGuard('ADMIN', 'AUDITOR')], loadComponent: () => import('./features/admin/audit.page').then(m => m.AuditPage) },
       { path: 'firm', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/firm.page').then(m => m.FirmPage) },
+      { path: 'subscription', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/subscription.page').then(m => m.SubscriptionPage) },
       { path: 'owner', canActivate: [ownerGuard], loadComponent: () => import('./features/owner/owner.page').then(m => m.OwnerPage) },
       { path: 'profile', loadComponent: () => import('./features/auth/profile.page').then(m => m.ProfilePage) }
+    ]
+  },
+  {
+    path: 'platform',
+    canActivate: [authGuard, platformGuard],
+    loadComponent: () => import('./layout/shell.component').then(m => m.ShellComponent),
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./features/platform/platform.page').then(m => m.PlatformPage) },
+      { path: 'firms/:firmId', loadComponent: () => import('./features/platform/platform-firm.page').then(m => m.PlatformFirmPage) }
     ]
   },
   { path: '**', redirectTo: 'app/dashboard' }

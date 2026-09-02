@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -27,14 +27,15 @@ import { AuthService } from '../../core/auth/auth.service';
   `
 })
 export class ProfilePage implements OnInit {
+  private readonly api = inject(ApiService);
+  private readonly fb = inject(FormBuilder);
+  readonly auth = inject(AuthService);
   profile: any;
   message = '';
   form = this.fb.nonNullable.group({
     currentPassword: ['', Validators.required],
     newPassword: ['', [Validators.required, Validators.minLength(8)]]
   });
-
-  constructor(private api: ApiService, private fb: FormBuilder, readonly auth: AuthService) {}
 
   ngOnInit(): void {
     this.api.get('/api/v1/auth/me').subscribe((profile) => this.profile = profile);

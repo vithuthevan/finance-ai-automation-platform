@@ -248,11 +248,16 @@ export class PeriodDetailPage implements OnInit {
     if (row.actionHint === 'DOCUMENT_REQUESTS') {
       return `/app/close/${this.clientId}/${this.periodId}`;
     }
+    if (row.actionHint?.startsWith('BANKING')) {
+      return '/app/banking';
+    }
     return '/app/documents';
   }
 
   blockerQuery(row: CloseFinding): Record<string, string> {
-    const dates = this.period ? { from: this.period.startDate, to: this.period.endDate, clientId: this.clientId } : { clientId: this.clientId };
+    const dates: Record<string, string> = this.period
+      ? { from: this.period.startDate, to: this.period.endDate, clientId: this.clientId }
+      : { clientId: this.clientId };
     if (row.actionHint === 'EXPENSES_DRAFT') {
       return { ...dates, status: 'DRAFT' };
     }

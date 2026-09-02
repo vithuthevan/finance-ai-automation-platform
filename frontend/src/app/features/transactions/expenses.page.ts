@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
@@ -81,6 +81,10 @@ import { AuthService } from '../../core/auth/auth.service';
   `
 })
 export class ExpensesPage implements OnInit {
+  private readonly api = inject(ApiService);
+  private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
+  readonly auth = inject(AuthService);
   clients: any[] = [];
   categories: any[] = [];
   rows: any[] = [];
@@ -100,13 +104,6 @@ export class ExpensesPage implements OnInit {
     amount: [0, Validators.required],
     vendorName: ['', Validators.required]
   });
-
-  constructor(
-    private api: ApiService,
-    private fb: FormBuilder,
-    private route: ActivatedRoute,
-    readonly auth: AuthService
-  ) {}
 
   ngOnInit(): void {
     const query = this.route.snapshot.queryParamMap;

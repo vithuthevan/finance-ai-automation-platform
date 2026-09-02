@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -27,13 +27,14 @@ import { AuthService } from '../../core/auth/auth.service';
   styles: [`.auth { min-height:100vh; display:grid; place-items:center; } mat-card { width: 380px; padding: 24px; } .error { color:#9b1c1c; }`]
 })
 export class LoginPage {
+  private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   error = '';
   form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required]
   });
-
-  constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {}
 
   submit(): void {
     this.error = '';

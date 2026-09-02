@@ -82,6 +82,30 @@ body {
 
 .hint { color: #52606d; }
 
+.subscription-banner {
+  padding: 10px 16px;
+  font-size: 14px;
+}
+
+.subscription-banner.warning {
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  color: #92400e;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
 .doc-review {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr);

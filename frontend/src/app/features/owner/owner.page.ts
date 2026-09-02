@@ -24,10 +24,10 @@ import { DocumentRequestRow } from '../close/close.models';
         </mat-form-field>
       </div>
 
-      <h2>Your accountant needs</h2>
-      @for (req of requests; track req.id) {
-        <mat-card class="metric-card">
-          <div class="label">{{ req.documentType }} · {{ req.status }}@if (req.dueDate) { · due {{ req.dueDate }} }</div>
+      <h2>Documents needed</h2>
+      @for (req of openRequests; track req.id) {
+        <mat-card class="metric-card" [class.overdue]="isOverdue(req)">
+          <div class="label">{{ displayTitle(req) }} · {{ req.documentType }}@if (req.dueDate) { · due {{ req.dueDate }} }</div>
           <div>{{ req.description }}</div>
           @if (req.status === 'OPEN' || req.status === 'UPLOADED') {
             <div class="toolbar-row">
@@ -40,8 +40,18 @@ import { DocumentRequestRow } from '../close/close.models';
           }
         </mat-card>
       }
-      @if (requests.length === 0) {
-        <p class="hint">No document requests right now.</p>
+      @if (openRequests.length === 0) {
+        <p class="hint">No open document requests right now.</p>
+      }
+
+      @if (completedRequests.length) {
+        <h2>Completed requests</h2>
+        @for (req of completedRequests; track req.id) {
+          <mat-card class="metric-card muted">
+            <div class="label">{{ displayTitle(req) }} · {{ req.status }}</div>
+            <div>{{ req.description }}</div>
+          </mat-card>
+        }
       }
 
       @if (!auth.isUploadOnly()) {
@@ -64,7 +74,8 @@ import { DocumentRequestRow } from '../close/close.models';
         }
       }
     </div>
-  `
+  `,
+  styles: ['.overdue { border-left: 4px solid #d32f2f; } .muted { opacity: .75; }']
 })
 export class OwnerPage implements OnInit {
   clients: any[] = [];
@@ -131,5 +142,24 @@ export class OwnerPage implements OnInit {
         this.reload();
       }
     });
+  }
+
+  get openRequests(): DocumentRequestRow[] {
+    return this.requests.filter((req) => req.status === 'OPEN' || req.status === 'UPLOADED');
+  }
+
+  get completedRequests(): DocumentRequestRow[] {
+    return this.requests.filter((req) => req.status === 'COMPLETED' || req.status === 'CANCELLED');
+  }
+
+  displayTitle(req: DocumentRequestRow): string {
+    return req.title?.trim() || req.description;
+  }
+
+  isOverdue(req: DocumentRequestRow): boolean {
+    if (!req.dueDate || req.status === 'COMPLETED' || req.status === 'CANCELLED') {
+      return false;
+    }
+    return req.dueDate < new Date().toISOString().slice(0, 10);
   }
 }

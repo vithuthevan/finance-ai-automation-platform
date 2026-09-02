@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -43,6 +43,8 @@ import { ApiService } from '../../core/services/api.service';
   `
 })
 export class UsersPage implements OnInit {
+  private readonly api = inject(ApiService);
+  private readonly fb = inject(FormBuilder);
   users: any[] = [];
   columns = ['name', 'email', 'role', 'active', 'actions'];
   form = this.fb.nonNullable.group({
@@ -51,8 +53,6 @@ export class UsersPage implements OnInit {
     password: ['', [Validators.required, Validators.minLength(8)]],
     role: ['ACCOUNTANT', Validators.required]
   });
-
-  constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void { this.reload(); }
 

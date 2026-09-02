@@ -30,6 +30,11 @@ export interface PeriodReadiness {
     openDocumentRequests: number;
     approvedTransactionsWithoutDocuments: number;
     approvedTransactionsWithDocuments: number;
+    bankAccounts?: number;
+    bankTransactions?: number;
+    matchedBankTransactions?: number;
+    unmatchedBankTransactions?: number;
+    reconciliationPercent?: number | null;
   };
   ledger: {
     draftExpenses: number;
@@ -97,9 +102,13 @@ export interface DocumentRequestRow {
   id: string;
   clientId: string;
   periodId?: string | null;
+  title?: string | null;
   description: string;
   documentType: string;
   dueDate?: string | null;
+  priority?: string | null;
   status: string;
   uploadedDocumentId?: string | null;
+  reminderCount?: number;
+  lastReminderAt?: string | null;
 }

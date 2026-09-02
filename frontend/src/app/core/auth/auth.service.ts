@@ -20,8 +20,13 @@ export class AuthService {
   readonly role = computed(() => this.session()?.role ?? null);
   readonly isAuthenticated = computed(() => !!this.session()?.accessToken);
   readonly uploadOnly = computed(() => this.hasRole('BUSINESS_OWNER') && !!this.session()?.uploadOnly);
+  readonly platformAdmin = signal(false);
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router) {
+    if (this.isAuthenticated()) {
+      this.refreshPlatformAccess();
+    }
+  }
 
   login(email: string, password: string) {
     return this.http.post<SessionUser>('/api/v1/auth/login', { email, password }).pipe(
@@ -73,6 +78,22 @@ export class AuthService {
   persist(session: SessionUser): void {
     localStorage.setItem(this.storageKey, JSON.stringify(session));
     this.session.set(session);
+    this.refreshPlatformAccess();
+  }
+
+  refreshPlatformAccess(): void {
+    if (!this.isAuthenticated()) {
+      this.platformAdmin.set(false);
+      return;
+    }
+    this.http.get<{ platformAdmin: boolean }>('/api/v1/platform/me').subscribe({
+      next: (response) => this.platformAdmin.set(!!response.platformAdmin),
+      error: () => this.platformAdmin.set(false)
+    });
+  }
+
+  isPlatformAdmin(): boolean {
+    return this.platformAdmin();
   }
 
   private readSession(): SessionUser | null {

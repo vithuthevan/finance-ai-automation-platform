@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -42,6 +42,8 @@ import { ApiService } from '../../core/services/api.service';
   `
 })
 export class CategoriesPage implements OnInit {
+  private readonly api = inject(ApiService);
+  private readonly fb = inject(FormBuilder);
   categories: any[] = [];
   columns = ['code', 'name', 'type', 'active', 'actions'];
   form = this.fb.nonNullable.group({
@@ -49,8 +51,6 @@ export class CategoriesPage implements OnInit {
     name: ['', Validators.required],
     categoryType: ['EXPENSE', Validators.required]
   });
-
-  constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void { this.reload(); }
 

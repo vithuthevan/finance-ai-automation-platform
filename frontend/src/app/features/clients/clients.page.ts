@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -38,11 +38,12 @@ import { AuthService } from '../../core/auth/auth.service';
   `
 })
 export class ClientsPage implements OnInit {
+  private readonly api = inject(ApiService);
+  private readonly fb = inject(FormBuilder);
+  readonly auth = inject(AuthService);
   clients: any[] = [];
   columns = ['name', 'email', 'active', 'actions'];
   form = this.fb.nonNullable.group({ name: ['', Validators.required], contactEmail: [''] });
-
-  constructor(private api: ApiService, private fb: FormBuilder, readonly auth: AuthService) {}
 
   ngOnInit(): void { this.reload(); }
 
