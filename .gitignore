@@ -8,6 +8,8 @@ backend/**/build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+.tools/
+
 ### Frontend ###
 frontend/node_modules/
 frontend/dist/
@@ -19,6 +21,9 @@ data/
 uploads/
 *.log
 *.tmp
+test-output.txt
+**/__pycache__/
+*.pyc
 
 ### STS ###
 .apt_generated
