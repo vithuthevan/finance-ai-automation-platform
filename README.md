@@ -105,7 +105,8 @@ Set `apiBaseUrl` to `https://api.example.com/api/v1` and `APP_CORS_ALLOWED_ORIGI
 
 The frontend is **not** copied into `src/main/resources/static`. Backend and frontend deploy independently.
 
-Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).  
+**Single VPS (Docker Compose + HTTPS):** [docs/VPS_HOSTING.md](docs/VPS_HOSTING.md).
 
 ## Roles
 
@@ -128,8 +129,14 @@ Base path: `/api/v1`
 
 ## Documentation
 
+- [Deep codebase onboarding](docs/CODEBASE_ONBOARDING.md)
+- [Architecture mastery — login & upload slice](docs/ARCHITECTURE_VERTICAL_SLICE.md)
+- [Architecture mastery — schema & security](docs/ARCHITECTURE_SCHEMA_SECURITY.md)
+- [Architect interview answers](docs/ARCHITECTURE_INTERVIEW_ANSWERS.md)
+- [Security model](docs/SECURITY.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 - [Month-end close](docs/CLOSE.md)
 - [Bank reconciliation](docs/BANK_RECONCILIATION.md)
 - [Product roadmap](docs/PRODUCT_ROADMAP.md)
 - [Deployment](docs/DEPLOYMENT.md)
+- [VPS hosting (Docker Compose)](docs/VPS_HOSTING.md)
