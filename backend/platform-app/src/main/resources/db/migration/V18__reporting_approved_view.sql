@@ -1,8 +1,11 @@
 -- Phase 3: refresh the approved-transactions view for reporting.
 -- DRAFT and VOID remain excluded from active totals.
 -- Category metadata and evidence flags are exposed for read models.
+-- DROP + CREATE: Postgres rejects CREATE OR REPLACE when column types/order change.
 
-CREATE OR REPLACE VIEW v_approved_transactions AS
+DROP VIEW IF EXISTS v_approved_transactions;
+
+CREATE VIEW v_approved_transactions AS
 SELECT
     e.id,
     e.firm_id,

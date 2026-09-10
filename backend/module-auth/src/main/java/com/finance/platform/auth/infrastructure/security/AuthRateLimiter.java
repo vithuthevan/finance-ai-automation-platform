@@ -1,6 +1,6 @@
 package com.finance.platform.auth.infrastructure.security;
 
-import com.finance.platform.core.exception.BusinessException;
+import com.finance.platform.core.exception.RateLimitedException;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -27,7 +27,8 @@ public class AuthRateLimiter {
 				history.pollFirst();
 			}
 			if (history.size() >= MAX_ATTEMPTS) {
-				throw new BusinessException("Too many requests. Please try again later.");
+				throw new com.finance.platform.core.exception.RateLimitedException(
+						"Too many requests. Please try again later.");
 			}
 			history.addLast(now);
 		}

@@ -1,7 +1,9 @@
 package com.finance.platform.auth.infrastructure.security;
 
+import com.finance.platform.core.idempotency.IdempotencyFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,9 +27,17 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class AuthSecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final IdempotencyFilter idempotencyFilter;
 	private final JwtAuthenticationEntryPoint authenticationEntryPoint;
 	private final UserDetailsService userDetailsService;
 	private final PasswordEncoder passwordEncoder;
+
+	@Bean
+	FilterRegistrationBean<IdempotencyFilter> disableServletIdempotencyFilter(IdempotencyFilter filter) {
+		FilterRegistrationBean<IdempotencyFilter> registration = new FilterRegistrationBean<>(filter);
+		registration.setEnabled(false);
+		return registration;
+	}
 
 	@Bean
 	AuthenticationManager authenticationManager() {
@@ -42,6 +52,13 @@ public class AuthSecurityConfig {
 				.csrf(csrf -> csrf.disable())
 				.cors(cors -> {
 				})
+				.headers(headers -> headers
+						.contentTypeOptions(contentType -> {
+						})
+						.frameOptions(frame -> frame.deny())
+						.referrerPolicy(referrer -> referrer.policy(
+								org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+				)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
 				.authorizeHttpRequests(auth -> auth
@@ -60,7 +77,9 @@ public class AuthSecurityConfig {
 						.anyRequest()
 						.authenticated()
 				)
-				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+				// After JWT so TenantContext is set; servlet auto-registration remains disabled above.
+				.addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
 
 		return http.build();
 	}

@@ -8,7 +8,7 @@ CREATE TABLE expenses (
 
     transaction_date         DATE          NOT NULL,
     amount                   NUMERIC(19,4) NOT NULL CHECK (amount > 0),
-    currency_code            CHAR(3)       NOT NULL DEFAULT 'LKR',
+    currency_code            VARCHAR(3)    NOT NULL DEFAULT 'LKR',
     vendor_name              VARCHAR(200)  NOT NULL,
     description              TEXT,
     tax_amount               NUMERIC(19,4) CHECK (tax_amount IS NULL OR tax_amount >= 0),
@@ -61,7 +61,7 @@ CREATE TABLE income (
 
     transaction_date         DATE          NOT NULL,
     amount                   NUMERIC(19,4) NOT NULL CHECK (amount > 0),
-    currency_code            CHAR(3)       NOT NULL DEFAULT 'LKR',
+    currency_code            VARCHAR(3)    NOT NULL DEFAULT 'LKR',
     customer_name            VARCHAR(200)  NOT NULL,
     description              TEXT,
     tax_amount               NUMERIC(19,4) CHECK (tax_amount IS NULL OR tax_amount >= 0),

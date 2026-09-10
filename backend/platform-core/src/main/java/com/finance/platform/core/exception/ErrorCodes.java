@@ -73,6 +73,9 @@ public final class ErrorCodes {
 	public static final String INVALID_TIMEZONE = "INVALID_TIMEZONE";
 	public static final String INVALID_CURRENCY = "INVALID_CURRENCY";
 	public static final String UPLOADS_UNAVAILABLE = "UPLOADS_UNAVAILABLE";
+	public static final String RATE_LIMITED = "RATE_LIMITED";
+	public static final String CONCURRENT_MODIFICATION = "CONCURRENT_MODIFICATION";
+	public static final String IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT";
 
 	private ErrorCodes() {
 	}

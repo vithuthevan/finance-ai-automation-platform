@@ -4,7 +4,7 @@ CREATE TABLE firms (
     id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     name             VARCHAR(200) NOT NULL,
     registration_no  VARCHAR(50),
-    currency_code    CHAR(3)      NOT NULL DEFAULT 'LKR',
+    currency_code    VARCHAR(3)   NOT NULL DEFAULT 'LKR',
     active           BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

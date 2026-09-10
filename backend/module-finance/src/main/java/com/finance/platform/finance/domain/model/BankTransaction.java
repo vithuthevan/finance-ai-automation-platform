@@ -9,6 +9,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -85,6 +86,11 @@ public class BankTransaction extends TenantAwareEntity {
 
 	@Column(name = "pending_income_id")
 	private UUID pendingIncomeId;
+
+	@Version
+	@Column(name = "row_version", nullable = false)
+	@Builder.Default
+	private Integer rowVersion = 0;
 
 	public enum MatchStatus {
 		UNMATCHED, SUGGESTED, MATCHED, BANK_ONLY, IGNORED, MISSING_RECEIPT, PENDING_APPROVAL

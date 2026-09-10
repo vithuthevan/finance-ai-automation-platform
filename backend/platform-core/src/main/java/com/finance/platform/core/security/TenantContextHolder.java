@@ -1,5 +1,7 @@
 package com.finance.platform.core.security;
 
+import com.finance.platform.core.exception.BusinessException;
+
 public final class TenantContextHolder {
 
 	private static final ThreadLocal<TenantContext> CONTEXT = new ThreadLocal<>();
@@ -13,6 +15,14 @@ public final class TenantContextHolder {
 
 	public static TenantContext get() {
 		return CONTEXT.get();
+	}
+
+	public static TenantContext require() {
+		TenantContext context = CONTEXT.get();
+		if (context == null || context.userId() == null) {
+			throw new BusinessException("Not authenticated");
+		}
+		return context;
 	}
 
 	public static void clear() {

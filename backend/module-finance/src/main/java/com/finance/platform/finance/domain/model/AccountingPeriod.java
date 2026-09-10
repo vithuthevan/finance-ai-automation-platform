@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -73,6 +74,11 @@ public class AccountingPeriod extends TenantAwareEntity {
 	private User reopenedBy;
 
 	private Instant reopenedAt;
+
+	@Version
+	@Column(name = "row_version", nullable = false)
+	@Builder.Default
+	private Integer rowVersion = 0;
 
 	public enum PeriodStatus {
 		OPEN, IN_REVIEW, READY_TO_CLOSE, CLOSED, REOPENED

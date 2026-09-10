@@ -13,6 +13,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -112,6 +113,11 @@ public class Expense extends TenantAwareEntity {
 
 	@Column(columnDefinition = "TEXT")
 	private String voidReason;
+
+	@Version
+	@Column(name = "row_version", nullable = false)
+	@Builder.Default
+	private Integer rowVersion = 0;
 
 	public void approve(User approver) {
 		if (status != TransactionStatus.DRAFT) {

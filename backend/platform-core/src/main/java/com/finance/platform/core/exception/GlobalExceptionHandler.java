@@ -2,15 +2,18 @@ package com.finance.platform.core.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -67,6 +70,15 @@ public class GlobalExceptionHandler {
 		detail.setTitle("Duplicate Resource");
 		detail.setDetail(ex.getMessage());
 		detail.setProperty("errorCode", ex.getErrorCode());
+		return detail;
+	}
+
+	@ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockingFailureException.class})
+	public ProblemDetail handleOptimisticLock(RuntimeException ex) {
+		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+		detail.setTitle("Concurrent Modification");
+		detail.setDetail("This record was changed by another request. Refresh and try again.");
+		detail.setProperty("errorCode", ErrorCodes.CONCURRENT_MODIFICATION);
 		return detail;
 	}
 
@@ -136,6 +148,15 @@ public class GlobalExceptionHandler {
 		detail.setTitle("Data Integrity Violation");
 		detail.setDetail("The operation could not be completed due to a data constraint.");
 		detail.setProperty("errorCode", ErrorCodes.BUSINESS_RULE_VIOLATION);
+		return detail;
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ProblemDetail handleNoResource(NoResourceFoundException ex) {
+		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+		detail.setTitle("Resource Not Found");
+		detail.setDetail("The requested API path was not found.");
+		detail.setProperty("errorCode", "RESOURCE_NOT_FOUND");
 		return detail;
 	}
 

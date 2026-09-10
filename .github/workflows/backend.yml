@@ -22,5 +22,5 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Assemble backend
-        run: ./gradlew :platform-app:bootJar --no-daemon -x test
+      - name: Test and assemble backend
+        run: ./gradlew :platform-app:test :platform-app:bootJar --no-daemon

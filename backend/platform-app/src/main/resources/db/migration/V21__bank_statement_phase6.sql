@@ -7,7 +7,7 @@ CREATE TABLE bank_accounts (
     bank_name               VARCHAR(120) NOT NULL,
     account_name            VARCHAR(120) NOT NULL,
     masked_account_number   VARCHAR(32),
-    currency                CHAR(3)      NOT NULL DEFAULT 'LKR',
+    currency                VARCHAR(3)   NOT NULL DEFAULT 'LKR',
     active                  BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -34,7 +34,9 @@ CREATE TABLE bank_import_profiles (
     date_format         VARCHAR(40)  NOT NULL DEFAULT 'AUTO',
     header_row          BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_by          UUID,
+    updated_by          UUID
 );
 
 CREATE INDEX idx_bank_import_profiles_client ON bank_import_profiles (client_id);
@@ -62,7 +64,7 @@ ALTER TABLE bank_transactions
     ADD COLUMN IF NOT EXISTS value_date DATE,
     ADD COLUMN IF NOT EXISTS direction VARCHAR(10),
     ADD COLUMN IF NOT EXISTS external_row_hash VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS currency CHAR(3) NOT NULL DEFAULT 'LKR',
+    ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'LKR',
     ADD COLUMN IF NOT EXISTS ignore_reason TEXT,
     ADD COLUMN IF NOT EXISTS pending_expense_id UUID REFERENCES expenses(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS pending_income_id UUID REFERENCES income(id) ON DELETE SET NULL;

@@ -13,7 +13,9 @@ CREATE TABLE subscription_plans (
     storage_limit_bytes     BIGINT       NOT NULL,
     features                TEXT,
     created_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_by              UUID,
+    updated_by              UUID
 );
 
 INSERT INTO subscription_plans (code, name, description, max_clients, max_users, monthly_document_limit, monthly_ai_limit, storage_limit_bytes, features)
@@ -66,6 +68,9 @@ CREATE TABLE plan_change_requests (
         CHECK (status IN ('OPEN', 'APPROVED', 'REJECTED', 'CANCELLED')),
     note            TEXT,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    created_by      UUID,
+    updated_by      UUID,
     resolved_at     TIMESTAMPTZ
 );
 

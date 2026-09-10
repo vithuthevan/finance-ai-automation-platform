@@ -87,6 +87,17 @@ JWT is sent via `Authorization: Bearer` header, not cookies, for API calls. CSRF
 
 V1 stores the access token in `localStorage` (`fp.session`). This is acceptable for V1 with short-lived access tokens and strong XSS hygiene; migrating refresh tokens to `HttpOnly` cookies is a Phase 10+ hardening item.
 
+The SPA auth interceptor refreshes on HTTP 401 (single in-flight refresh, one retry) and clears the session if refresh fails.
+
+## Idempotency
+
+Mutating financial POSTs accept an `Idempotency-Key` header. The filter runs on the security chain after JWT authentication. The Angular `ApiService` sends a UUID key for create/approve/void expense & income, bank import/confirm, suggestion accept, and period close.
+
+## Readiness
+
+- `GET /api/v1/health` — process liveness (no dependency checks)
+- `GET /api/v1/health/ready` — verifies PostgreSQL connectivity; returns **503** when the database is unreachable
+
 ## Secrets
 
 - No real secrets in repository
