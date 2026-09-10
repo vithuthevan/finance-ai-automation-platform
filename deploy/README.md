@@ -37,3 +37,7 @@ Do not use `*` with credentialed JWT requests.
 ## TLS
 
 Terminate HTTPS at Nginx, AWS ALB, Cloudflare, or the host platform. The backend uses `server.forward-headers-strategy=framework` so `X-Forwarded-Proto` is honored.
+
+### Caddy on a VPS (Model A)
+
+Sample config: [`Caddyfile`](Caddyfile). It reverse-proxies `https://your.domain.com` to the Compose frontend on `localhost:4200`. Full steps (secrets, `docker compose`, firewall, smoke checks): [docs/VPS_HOSTING.md](../docs/VPS_HOSTING.md).

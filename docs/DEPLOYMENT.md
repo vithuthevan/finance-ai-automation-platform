@@ -27,6 +27,8 @@ Nginx (or an equivalent reverse proxy) serves Angular at `/` and proxies `/api/`
 
 Works with Docker Compose, a VM + Nginx, or any host that can run both containers behind one hostname.
 
+**VPS runbook (recommended for a single server):** [VPS_HOSTING.md](VPS_HOSTING.md) — Docker Compose, secrets, Caddy HTTPS, firewall, redeploy, and a post-deploy smoke checklist. Sample TLS config: [`deploy/Caddyfile`](../deploy/Caddyfile).
+
 ## Model B — separate hosts
 
 - Frontend: S3 + CloudFront, Cloudflare Pages, Netlify, Vercel, or an Nginx container using `frontend-only.conf`

@@ -1,0 +1,13 @@
+# Sample Caddyfile for VPS hosting (Model A — same origin).
+# Copy to /etc/caddy/Caddyfile (or include from there), replace the hostname,
+# point DNS A/AAAA at the VPS, then: sudo systemctl reload caddy
+#
+# Flow: Browser → Caddy (:443) → frontend container (localhost:4200)
+#       frontend Nginx proxies /api → backend:8080 inside Compose.
+#
+# See docs/VPS_HOSTING.md for the full runbook.
+
+your.domain.com {
+	encode gzip
+	reverse_proxy localhost:4200
+}
