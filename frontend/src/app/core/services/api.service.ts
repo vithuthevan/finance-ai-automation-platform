@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs';
 
 interface PageResponse<T> {
@@ -8,6 +8,9 @@ interface PageResponse<T> {
   size: number;
   totalElements: number;
 }
+
+/** Paths where duplicate POSTs can corrupt financial state if retried without a key. */
+const IDEMPOTENT_POST = /\/api\/v1\/clients\/[^/]+\/(expenses(\/[^/]+\/(approve|void))?|income(\/[^/]+\/(approve|void))?|bank\/(imports|transactions\/[^/]+\/confirm)|documents\/[^/]+\/review\/accept|periods\/[^/]+\/close)(?:\?|$)/;
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -24,7 +27,7 @@ export class ApiService {
   }
 
   post<T>(url: string, body?: unknown) {
-    return this.http.post<T>(url, body ?? {});
+    return this.http.post<T>(url, body ?? {}, { headers: this.idempotencyHeaders(url) });
   }
 
   put<T>(url: string, body: unknown) {
@@ -39,7 +42,7 @@ export class ApiService {
     const data = new FormData();
     data.append('file', file);
     Object.entries(extra ?? {}).forEach(([key, value]) => data.append(key, value));
-    return this.http.post<T>(url, data);
+    return this.http.post<T>(url, data, { headers: this.idempotencyHeaders(url) });
   }
 
   download(url: string, params?: Record<string, string | number | boolean | undefined>) {
@@ -53,6 +56,13 @@ export class ApiService {
         filename: attachmentFilename(response.headers.get('Content-Disposition'), 'export')
       }))
     );
+  }
+
+  private idempotencyHeaders(url: string): HttpHeaders | undefined {
+    if (!IDEMPOTENT_POST.test(url.split('?')[0])) {
+      return undefined;
+    }
+    return new HttpHeaders({ 'Idempotency-Key': crypto.randomUUID() });
   }
 
   private toParams(params?: Record<string, string | number | boolean | undefined>): HttpParams {

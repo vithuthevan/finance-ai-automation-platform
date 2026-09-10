@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { tap } from 'rxjs';
+import { Observable, finalize, shareReplay, tap, throwError } from 'rxjs';
 
 export interface SessionUser {
   userId: string;
@@ -16,6 +16,8 @@ export interface SessionUser {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly storageKey = 'fp.session';
+  private refreshInFlight: Observable<SessionUser> | null = null;
+
   readonly session = signal<SessionUser | null>(this.readSession());
   readonly role = computed(() => this.session()?.role ?? null);
   readonly isAuthenticated = computed(() => !!this.session()?.accessToken);
@@ -38,6 +40,28 @@ export class AuthService {
     return this.http.post('/api/v1/auth/register', payload);
   }
 
+  /**
+   * Rotates the refresh token and issues a new access token.
+   * Concurrent 401s share one in-flight refresh to avoid revoking a just-rotated token.
+   */
+  refreshSession(): Observable<SessionUser> {
+    if (this.refreshInFlight) {
+      return this.refreshInFlight;
+    }
+    const refreshToken = this.session()?.refreshToken;
+    if (!refreshToken) {
+      return throwError(() => new Error('No refresh token'));
+    }
+    this.refreshInFlight = this.http.post<SessionUser>('/api/v1/auth/refresh', { refreshToken }).pipe(
+      tap((session) => this.persist(session)),
+      shareReplay(1),
+      finalize(() => {
+        this.refreshInFlight = null;
+      })
+    );
+    return this.refreshInFlight;
+  }
+
   logout(): void {
     const refreshToken = this.session()?.refreshToken;
     if (refreshToken) {
@@ -45,6 +69,17 @@ export class AuthService {
     }
     localStorage.removeItem(this.storageKey);
     this.session.set(null);
+    this.platformAdmin.set(false);
+    this.router.navigateByUrl('/login');
+  }
+
+  /**
+   * Clears local session without calling logout API (used when refresh already failed).
+   */
+  clearSessionAndRedirect(): void {
+    localStorage.removeItem(this.storageKey);
+    this.session.set(null);
+    this.platformAdmin.set(false);
     this.router.navigateByUrl('/login');
   }
 
