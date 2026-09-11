@@ -116,7 +116,8 @@ public class PeriodCloseService {
 	@Transactional
 	public PeriodResponse close(UUID clientId, UUID periodId, String closeNote) {
 		Client client = clientAccessService.requireApproveAccess(clientId);
-		AccountingPeriod period = requirePeriod(clientId, periodId);
+		AccountingPeriod period = periodRepository.findByIdAndClient_IdForUpdate(periodId, clientId)
+				.orElseThrow(() -> new ResourceNotFoundException("Accounting period", periodId));
 		if (period.isClosed()) {
 			throw new BusinessException(ErrorCodes.PERIOD_ALREADY_CLOSED, "Period is already closed");
 		}

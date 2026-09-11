@@ -49,9 +49,7 @@ public class DocumentReviewService {
 	public DocumentResponse accept(UUID clientId, UUID documentId, AcceptSuggestionRequest request) {
 		Client client = clientAccessService.requireWriteAccess(clientId);
 		Receipt receipt = documentService.requireDocument(clientId, documentId);
-		if (receipt.getStatus() == Receipt.ReceiptStatus.REJECTED || receipt.getStatus() == Receipt.ReceiptStatus.LINKED) {
-			throw new ValidationException("documentId", "This document cannot accept a suggestion");
-		}
+		assertCanCreateDraftFromDocument(receipt);
 		AiExtractionMetadata ai = receipt.getAiMetadata() != null ? receipt.getAiMetadata() : new AiExtractionMetadata();
 		String type = resolveType(request != null ? request.transactionType() : null, ai);
 		if ("UNKNOWN".equals(type)) {
@@ -95,6 +93,7 @@ public class DocumentReviewService {
 	public DocumentResponse modify(UUID clientId, UUID documentId, ModifySuggestionRequest request) {
 		Client client = clientAccessService.requireWriteAccess(clientId);
 		Receipt receipt = documentService.requireDocument(clientId, documentId);
+		assertCanCreateDraftFromDocument(receipt);
 		createDraft(client, receipt, request.transactionType(), request.categoryId(), request.transactionDate(),
 				request.amount(), request.currencyCode(), request.partyName(), request.description(),
 				request.taxAmount(), request.referenceNo(), request.paymentMethod(), TransactionSource.AI,
@@ -106,9 +105,7 @@ public class DocumentReviewService {
 	public DocumentResponse createFromDocument(UUID clientId, UUID documentId, ModifySuggestionRequest request) {
 		Client client = clientAccessService.requireWriteAccess(clientId);
 		Receipt receipt = documentService.requireDocument(clientId, documentId);
-		if (receipt.getStatus() == Receipt.ReceiptStatus.REJECTED) {
-			throw new ValidationException("documentId", "Rejected documents cannot be converted into transactions");
-		}
+		assertCanCreateDraftFromDocument(receipt);
 		createDraft(client, receipt, request.transactionType(), request.categoryId(), request.transactionDate(),
 				request.amount(), request.currencyCode(), request.partyName(), request.description(),
 				request.taxAmount(), request.referenceNo(), request.paymentMethod(), TransactionSource.MANUAL,
@@ -142,6 +139,12 @@ public class DocumentReviewService {
 				.afterState(java.util.Map.of("documentStatus", receipt.getStatus().name()))
 				.build());
 		return documentService.get(clientId, documentId);
+	}
+
+	private void assertCanCreateDraftFromDocument(Receipt receipt) {
+		if (receipt.getStatus() == Receipt.ReceiptStatus.REJECTED || receipt.getStatus() == Receipt.ReceiptStatus.LINKED) {
+			throw new ValidationException("documentId", "This document cannot be converted into a new transaction");
+		}
 	}
 
 	private void createDraft(

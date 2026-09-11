@@ -1,7 +1,9 @@
 package com.finance.platform.finance.infrastructure.persistence;
 
 import com.finance.platform.finance.domain.model.AccountingPeriod;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +19,10 @@ public interface AccountingPeriodJpaRepository extends JpaRepository<AccountingP
 	List<AccountingPeriod> findByClient_IdOrderByPeriodYearDescPeriodMonthDesc(UUID clientId);
 
 	Optional<AccountingPeriod> findByIdAndClient_Id(UUID id, UUID clientId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select p from AccountingPeriod p where p.id = :id and p.client.id = :clientId")
+	Optional<AccountingPeriod> findByIdAndClient_IdForUpdate(@Param("id") UUID id, @Param("clientId") UUID clientId);
 
 	@Query("""
 			select p from AccountingPeriod p
