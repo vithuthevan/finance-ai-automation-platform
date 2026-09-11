@@ -11,23 +11,27 @@ import { AuthService } from '../../core/auth/auth.service';
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule],
   template: `
-    <div class="auth">
+    <div class="auth-shell">
       <mat-card>
+        <div class="brand-row"><span class="mark">◆</span><strong>Finance Platform</strong></div>
         <h1>Register firm</h1>
         <p>Create the firm administrator account, then sign in.</p>
         <form [formGroup]="form" (ngSubmit)="submit()">
-          <mat-form-field class="full-width"><mat-label>Firm name</mat-label><input matInput formControlName="firmName"></mat-form-field>
-          <mat-form-field class="full-width"><mat-label>Your name</mat-label><input matInput formControlName="fullName"></mat-form-field>
-          <mat-form-field class="full-width"><mat-label>Email</mat-label><input matInput formControlName="email"></mat-form-field>
-          <mat-form-field class="full-width"><mat-label>Password</mat-label><input matInput type="password" formControlName="password"></mat-form-field>
+          <mat-form-field class="full-width" appearance="outline"><mat-label>Firm name</mat-label><input matInput formControlName="firmName"></mat-form-field>
+          <mat-form-field class="full-width" appearance="outline"><mat-label>Your name</mat-label><input matInput formControlName="fullName"></mat-form-field>
+          <mat-form-field class="full-width" appearance="outline"><mat-label>Email</mat-label><input matInput formControlName="email" autocomplete="username"></mat-form-field>
+          <mat-form-field class="full-width" appearance="outline"><mat-label>Password</mat-label><input matInput type="password" formControlName="password" autocomplete="new-password"></mat-form-field>
           @if (error) { <p class="error">{{ error }}</p> }
-          <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid">Create firm</button>
+          <button mat-flat-button color="primary" class="full-width" type="submit" [disabled]="form.invalid">Create firm</button>
         </form>
         <a routerLink="/login">Back to sign in</a>
       </mat-card>
     </div>
   `,
-  styles: [`.auth { min-height:100vh; display:grid; place-items:center; } mat-card { width: 420px; padding: 24px; } .error { color:#9b1c1c; }`]
+  styles: [`
+    .brand-row { display:flex; align-items:center; gap:8px; margin-bottom:18px; color:var(--fp-ink); }
+    .mark { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; background:linear-gradient(145deg,#f29a4a,var(--fp-orange)); color:#fff; font-size:12px; }
+  `]
 })
 export class RegisterPage {
   private readonly fb = inject(FormBuilder);
