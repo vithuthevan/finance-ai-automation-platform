@@ -1,7 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, finalize, shareReplay, tap, throwError } from 'rxjs';
+import { Observable, catchError, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
 
 export interface SessionUser {
   userId: string;
@@ -9,50 +9,70 @@ export interface SessionUser {
   fullName: string;
   role: string;
   accessToken: string;
-  refreshToken?: string;
   uploadOnly?: boolean;
+}
+
+interface AuthApiResponse {
+  userId: string;
+  email: string;
+  fullName: string;
+  role: string;
+  accessToken: string;
+  uploadOnly?: boolean;
+  refreshToken?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly storageKey = 'fp.session';
   private refreshInFlight: Observable<SessionUser> | null = null;
+  private bootstrapped = false;
 
-  readonly session = signal<SessionUser | null>(this.readSession());
+  readonly session = signal<SessionUser | null>(null);
   readonly role = computed(() => this.session()?.role ?? null);
   readonly isAuthenticated = computed(() => !!this.session()?.accessToken);
   readonly uploadOnly = computed(() => this.hasRole('BUSINESS_OWNER') && !!this.session()?.uploadOnly);
   readonly platformAdmin = signal(false);
 
-  constructor(private http: HttpClient, private router: Router) {
-    if (this.isAuthenticated()) {
-      this.refreshPlatformAccess();
+  constructor(private http: HttpClient, private router: Router) {}
+
+  /**
+   * Restore access token from httpOnly refresh cookie (no localStorage secrets).
+   */
+  bootstrapSession(): Observable<boolean> {
+    if (this.bootstrapped && this.isAuthenticated()) {
+      return of(true);
     }
+    this.bootstrapped = true;
+    return this.http.post<AuthApiResponse>('/api/v1/auth/refresh', {}, { withCredentials: true }).pipe(
+      tap((response) => this.persist(toSession(response))),
+      map(() => true),
+      catchError(() => {
+        this.session.set(null);
+        this.platformAdmin.set(false);
+        return of(false);
+      })
+    );
   }
 
   login(email: string, password: string) {
-    return this.http.post<SessionUser>('/api/v1/auth/login', { email, password }).pipe(
-      tap((session) => this.persist(session))
+    return this.http.post<AuthApiResponse>('/api/v1/auth/login', { email, password }, { withCredentials: true }).pipe(
+      tap((response) => this.persist(toSession(response)))
     );
   }
 
   register(payload: { firmName: string; email: string; password: string; fullName: string }) {
-    return this.http.post('/api/v1/auth/register', payload);
+    return this.http.post('/api/v1/auth/register', payload, { withCredentials: true });
   }
 
   /**
-   * Rotates the refresh token and issues a new access token.
-   * Concurrent 401s share one in-flight refresh to avoid revoking a just-rotated token.
+   * Rotates the refresh cookie and issues a new access token in memory.
    */
   refreshSession(): Observable<SessionUser> {
     if (this.refreshInFlight) {
       return this.refreshInFlight;
     }
-    const refreshToken = this.session()?.refreshToken;
-    if (!refreshToken) {
-      return throwError(() => new Error('No refresh token'));
-    }
-    this.refreshInFlight = this.http.post<SessionUser>('/api/v1/auth/refresh', { refreshToken }).pipe(
+    this.refreshInFlight = this.http.post<AuthApiResponse>('/api/v1/auth/refresh', {}, { withCredentials: true }).pipe(
+      map((response) => toSession(response)),
       tap((session) => this.persist(session)),
       shareReplay(1),
       finalize(() => {
@@ -63,21 +83,13 @@ export class AuthService {
   }
 
   logout(): void {
-    const refreshToken = this.session()?.refreshToken;
-    if (refreshToken) {
-      this.http.post('/api/v1/auth/logout', { refreshToken }).subscribe({ error: () => undefined });
-    }
-    localStorage.removeItem(this.storageKey);
+    this.http.post('/api/v1/auth/logout', {}, { withCredentials: true }).subscribe({ error: () => undefined });
     this.session.set(null);
     this.platformAdmin.set(false);
     this.router.navigateByUrl('/login');
   }
 
-  /**
-   * Clears local session without calling logout API (used when refresh already failed).
-   */
   clearSessionAndRedirect(): void {
-    localStorage.removeItem(this.storageKey);
     this.session.set(null);
     this.platformAdmin.set(false);
     this.router.navigateByUrl('/login');
@@ -111,7 +123,6 @@ export class AuthService {
   }
 
   persist(session: SessionUser): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(session));
     this.session.set(session);
     this.refreshPlatformAccess();
   }
@@ -121,7 +132,7 @@ export class AuthService {
       this.platformAdmin.set(false);
       return;
     }
-    this.http.get<{ platformAdmin: boolean }>('/api/v1/platform/me').subscribe({
+    this.http.get<{ platformAdmin: boolean }>('/api/v1/platform/me', { withCredentials: true }).subscribe({
       next: (response) => this.platformAdmin.set(!!response.platformAdmin),
       error: () => this.platformAdmin.set(false)
     });
@@ -130,16 +141,15 @@ export class AuthService {
   isPlatformAdmin(): boolean {
     return this.platformAdmin();
   }
+}
 
-  private readSession(): SessionUser | null {
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) {
-      return null;
-    }
-    try {
-      return JSON.parse(raw) as SessionUser;
-    } catch {
-      return null;
-    }
-  }
+function toSession(response: AuthApiResponse): SessionUser {
+  return {
+    userId: response.userId,
+    email: response.email,
+    fullName: response.fullName,
+    role: response.role,
+    accessToken: response.accessToken,
+    uploadOnly: response.uploadOnly
+  };
 }

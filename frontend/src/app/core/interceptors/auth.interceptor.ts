@@ -12,9 +12,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   const auth = inject(AuthService);
   const token = auth.session()?.accessToken;
-  const authedReq = token
-    ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-    : req;
+  let authedReq = req.clone({ withCredentials: true });
+  if (token) {
+    authedReq = authedReq.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
+  }
 
   return next(authedReq).pipe(
     catchError((error: unknown) => {
@@ -24,14 +25,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (AUTH_PATH.test(req.url) || req.headers.has('X-Auth-Retry')) {
         return throwError(() => error);
       }
-      if (!auth.session()?.refreshToken) {
-        auth.clearSessionAndRedirect();
-        return throwError(() => error);
-      }
 
       return auth.refreshSession().pipe(
         switchMap((session) =>
           next(req.clone({
+            withCredentials: true,
             setHeaders: {
               Authorization: `Bearer ${session.accessToken}`,
               'X-Auth-Retry': '1'

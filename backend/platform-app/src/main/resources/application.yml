@@ -27,6 +27,9 @@ app:
   jwt:
     expiration-ms: ${APP_JWT_EXPIRATION_MS:3600000}
     issuer: ${APP_JWT_ISSUER:finance-platform}
+  auth:
+    cookie:
+      secure: ${APP_AUTH_COOKIE_SECURE:false}
   storage:
     provider: ${APP_STORAGE_PROVIDER:${STORAGE_PROVIDER:local}}
     max-file-size-mb: ${DOCUMENT_MAX_FILE_SIZE_MB:0}
