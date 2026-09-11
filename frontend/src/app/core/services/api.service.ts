@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { map } from 'rxjs';
+import { map, finalize } from 'rxjs';
 
 interface PageResponse<T> {
   content: T[];
@@ -14,6 +14,9 @@ const IDEMPOTENT_POST = /\/api\/v1\/clients\/[^/]+\/(expenses(\/[^/]+\/(approve|
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
+  /** In-flight stable keys so double-clicks / retries reuse the same Idempotency-Key. */
+  private readonly inflightKeys = new Map<string, string>();
+
   constructor(private http: HttpClient) {}
 
   list<T>(url: string, params?: Record<string, string | number | boolean | undefined>) {
@@ -23,34 +26,46 @@ export class ApiService {
   }
 
   get<T>(url: string, params?: Record<string, string | number | boolean | undefined>) {
-    return this.http.get<T>(url, { params: this.toParams(params) });
+    return this.http.get<T>(url, { params: this.toParams(params), withCredentials: true });
   }
 
   post<T>(url: string, body?: unknown) {
-    return this.http.post<T>(url, body ?? {}, { headers: this.idempotencyHeaders(url) });
+    const payload = body ?? {};
+    const headers = this.idempotencyHeaders(url, payload);
+    return this.http.post<T>(url, payload, { headers, withCredentials: true }).pipe(
+      finalize(() => this.releaseIdempotencyKey(url, payload))
+    );
   }
 
   put<T>(url: string, body: unknown) {
-    return this.http.put<T>(url, body);
+    return this.http.put<T>(url, body, { withCredentials: true });
   }
 
   delete<T>(url: string) {
-    return this.http.delete<T>(url);
+    return this.http.delete<T>(url, { withCredentials: true });
   }
 
   upload<T>(url: string, file: File, extra?: Record<string, string>) {
     const data = new FormData();
     data.append('file', file);
     Object.entries(extra ?? {}).forEach(([key, value]) => data.append(key, value));
-    return this.http.post<T>(url, data, { headers: this.idempotencyHeaders(url) });
+    const headers = this.idempotencyHeaders(url, `upload:${file.name}:${file.size}:${file.lastModified}`);
+    return this.http.post<T>(url, data, { headers, withCredentials: true }).pipe(
+      finalize(() => this.releaseIdempotencyKey(url, `upload:${file.name}:${file.size}:${file.lastModified}`))
+    );
   }
 
   download(url: string, params?: Record<string, string | number | boolean | undefined>) {
-    return this.http.get(url, { params: this.toParams(params), responseType: 'blob' });
+    return this.http.get(url, { params: this.toParams(params), responseType: 'blob', withCredentials: true });
   }
 
   downloadAttachment(url: string, params?: Record<string, string | number | boolean | undefined>) {
-    return this.http.get(url, { params: this.toParams(params), responseType: 'blob', observe: 'response' }).pipe(
+    return this.http.get(url, {
+      params: this.toParams(params),
+      responseType: 'blob',
+      observe: 'response',
+      withCredentials: true
+    }).pipe(
       map((response) => ({
         blob: response.body as Blob,
         filename: attachmentFilename(response.headers.get('Content-Disposition'), 'export')
@@ -58,11 +73,26 @@ export class ApiService {
     );
   }
 
-  private idempotencyHeaders(url: string): HttpHeaders | undefined {
-    if (!IDEMPOTENT_POST.test(url.split('?')[0])) {
+  private idempotencyHeaders(url: string, body: unknown): HttpHeaders | undefined {
+    const path = url.split('?')[0];
+    if (!IDEMPOTENT_POST.test(path)) {
       return undefined;
     }
-    return new HttpHeaders({ 'Idempotency-Key': crypto.randomUUID() });
+    const fingerprint = `POST ${path} ${stableSerialize(body)}`;
+    let key = this.inflightKeys.get(fingerprint);
+    if (!key) {
+      key = crypto.randomUUID();
+      this.inflightKeys.set(fingerprint, key);
+    }
+    return new HttpHeaders({ 'Idempotency-Key': key });
+  }
+
+  private releaseIdempotencyKey(url: string, body: unknown): void {
+    const path = url.split('?')[0];
+    if (!IDEMPOTENT_POST.test(path)) {
+      return;
+    }
+    this.inflightKeys.delete(`POST ${path} ${stableSerialize(body)}`);
   }
 
   private toParams(params?: Record<string, string | number | boolean | undefined>): HttpParams {
@@ -76,22 +106,29 @@ export class ApiService {
   }
 }
 
+function stableSerialize(body: unknown): string {
+  if (typeof body === 'string') {
+    return body;
+  }
+  try {
+    return JSON.stringify(body ?? {});
+  } catch {
+    return String(body);
+  }
+}
+
 function attachmentFilename(header: string | null, fallback: string): string {
   if (!header) {
     return fallback;
   }
-  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header);
-  if (utf8?.[1]) {
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utfMatch?.[1]) {
     try {
-      return decodeURIComponent(utf8[1]);
+      return decodeURIComponent(utfMatch[1].trim());
     } catch {
-      return fallback;
+      return utfMatch[1].trim();
     }
   }
-  const quoted = /filename="([^"]+)"/i.exec(header);
-  if (quoted?.[1]) {
-    return quoted[1];
-  }
-  const plain = /filename=([^;]+)/i.exec(header);
+  const plain = /filename="?([^";]+)"?/i.exec(header);
   return plain?.[1]?.trim() || fallback;
 }

@@ -5,6 +5,7 @@ import com.finance.platform.core.exception.ErrorCodes;
 import com.finance.platform.core.security.TenantContext;
 import com.finance.platform.core.security.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,8 +47,29 @@ public class IdempotencyService {
 				.status(IdempotencyKey.Status.STARTED)
 				.createdAt(Instant.now())
 				.build();
-		repository.save(started);
+		try {
+			repository.saveAndFlush(started);
+		} catch (DataIntegrityViolationException ex) {
+			Optional<IdempotencyKey> raced = repository.findByFirmIdAndUserIdAndKeyHash(
+					tenant.firmId(), tenant.userId(), keyHash);
+			if (raced.isEmpty()) {
+				throw new BusinessException(ErrorCodes.IDEMPOTENCY_CONFLICT,
+						"A request with this Idempotency-Key is already in progress");
+			}
+			IdempotencyKey row = raced.get();
+			if (!row.getRequestHash().equals(requestHash) || !row.getPath().equals(path) || !row.getMethod().equals(method)) {
+				throw new BusinessException(ErrorCodes.IDEMPOTENCY_CONFLICT,
+						"Idempotency-Key was reused with a different request");
+			}
+			return Optional.of(row);
+		}
 		return Optional.empty();
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<IdempotencyKey> findExisting(String rawKey) {
+		TenantContext tenant = TenantContextHolder.require();
+		return repository.findByFirmIdAndUserIdAndKeyHash(tenant.firmId(), tenant.userId(), sha256(rawKey.trim()));
 	}
 
 	@Transactional
@@ -64,9 +86,12 @@ public class IdempotencyService {
 	}
 
 	public static String sha256(String value) {
+		return sha256(value.getBytes(StandardCharsets.UTF_8));
+	}
+
+	public static String sha256(byte[] value) {
 		try {
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-					.digest(value.getBytes(StandardCharsets.UTF_8)));
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value == null ? new byte[0] : value));
 		} catch (Exception ex) {
 			throw new IllegalStateException("SHA-256 unavailable");
 		}

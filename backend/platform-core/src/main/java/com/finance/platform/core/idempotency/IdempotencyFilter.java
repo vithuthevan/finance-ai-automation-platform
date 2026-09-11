@@ -8,10 +8,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
@@ -38,9 +40,6 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 		if (!"POST".equalsIgnoreCase(request.getMethod())) {
 			return true;
 		}
-		if (request.getHeader(HEADER) == null || request.getHeader(HEADER).isBlank()) {
-			return true;
-		}
 		if (TenantContextHolder.get() == null) {
 			return true;
 		}
@@ -55,16 +54,54 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 			@NonNull FilterChain filterChain
 	) throws ServletException, IOException {
 		String rawKey = request.getHeader(HEADER);
-		String requestHash = IdempotencyService.sha256(request.getMethod() + " " + request.getRequestURI());
+		if (rawKey == null || rawKey.isBlank()) {
+			writeProblem(response, HttpServletResponse.SC_BAD_REQUEST, ErrorCodes.IDEMPOTENCY_KEY_REQUIRED,
+					"Idempotency-Key header is required for this operation");
+			return;
+		}
+
+		// Spring 6.2+/Boot 4: ContentCachingRequestWrapper requires an explicit content-cache limit (bytes).
+		final int contentCacheLimit = 2 * 1024 * 1024;
+		ContentCachingRequestWrapper cachedRequest = request instanceof ContentCachingRequestWrapper wrapped
+				? wrapped
+				: new ContentCachingRequestWrapper(request, contentCacheLimit);
+
+		String contentType = cachedRequest.getContentType() == null ? "" : cachedRequest.getContentType();
+		String bodyHash;
+		if (contentType.toLowerCase().startsWith("multipart/")) {
+			// Avoid buffering large bank CSV uploads twice; scope key with size + type.
+			bodyHash = IdempotencyService.sha256("multipart:" + contentType + ":" + cachedRequest.getContentLengthLong());
+		} else {
+			byte[] bodyBytes = cachedRequest.getContentAsByteArray();
+			if (bodyBytes.length == 0) {
+				bodyBytes = cachedRequest.getInputStream().readAllBytes();
+			}
+			bodyHash = IdempotencyService.sha256(bodyBytes);
+		}
+		String requestHash = IdempotencyService.sha256(
+				cachedRequest.getMethod() + " " + cachedRequest.getRequestURI() + " " + bodyHash);
+
 		Optional<IdempotencyKey> existing;
 		try {
-			existing = idempotencyService.begin(rawKey, request.getMethod(), request.getRequestURI(), requestHash);
+			existing = idempotencyService.begin(rawKey, cachedRequest.getMethod(), cachedRequest.getRequestURI(), requestHash);
 		} catch (BusinessException ex) {
 			writeProblem(response, HttpServletResponse.SC_CONFLICT, ex.getErrorCode(), ex.getMessage());
 			return;
+		} catch (DataIntegrityViolationException ex) {
+			existing = idempotencyService.findExisting(rawKey);
+			if (existing.isEmpty()) {
+				writeProblem(response, HttpServletResponse.SC_CONFLICT, ErrorCodes.IDEMPOTENCY_CONFLICT,
+						"A request with this Idempotency-Key is already in progress");
+				return;
+			}
 		}
 		if (existing.isPresent()) {
 			IdempotencyKey row = existing.get();
+			if (!row.getRequestHash().equals(requestHash)) {
+				writeProblem(response, HttpServletResponse.SC_CONFLICT, ErrorCodes.IDEMPOTENCY_CONFLICT,
+						"Idempotency-Key was reused with a different request");
+				return;
+			}
 			if (row.getStatus() == IdempotencyKey.Status.COMPLETED && row.getStatusCode() != null) {
 				response.setStatus(row.getStatusCode());
 				response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -80,7 +117,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
 		ContentCachingResponseWrapper wrapped = new ContentCachingResponseWrapper(response);
 		try {
-			filterChain.doFilter(request, wrapped);
+			filterChain.doFilter(cachedRequest, wrapped);
 			if (wrapped.getStatus() < 500) {
 				String body = new String(wrapped.getContentAsByteArray(), StandardCharsets.UTF_8);
 				idempotencyService.complete(rawKey, wrapped.getStatus(), body);
@@ -94,7 +131,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 			throws IOException {
 		response.setStatus(status);
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		String json = "{\"title\":\"Conflict\",\"detail\":\"" + escape(detail) + "\",\"errorCode\":\"" + errorCode + "\"}";
+		String json = "{\"title\":\"" + (status == 400 ? "Bad Request" : "Conflict")
+				+ "\",\"detail\":\"" + escape(detail) + "\",\"errorCode\":\"" + errorCode + "\"}";
 		response.getOutputStream().write(json.getBytes(StandardCharsets.UTF_8));
 	}
 

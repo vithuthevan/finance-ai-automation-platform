@@ -76,6 +76,7 @@ public final class ErrorCodes {
 	public static final String RATE_LIMITED = "RATE_LIMITED";
 	public static final String CONCURRENT_MODIFICATION = "CONCURRENT_MODIFICATION";
 	public static final String IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT";
+	public static final String IDEMPOTENCY_KEY_REQUIRED = "IDEMPOTENCY_KEY_REQUIRED";
 
 	private ErrorCodes() {
 	}
