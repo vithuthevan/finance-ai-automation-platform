@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -94,6 +95,11 @@ public class Receipt extends TenantAwareEntity {
 
 	private Instant uploadedAt;
 	private Instant deletedAt;
+
+	@Version
+	@Column(name = "row_version", nullable = false)
+	@Builder.Default
+	private Integer rowVersion = 0;
 
 	@ManyToMany(mappedBy = "receipts")
 	@Builder.Default

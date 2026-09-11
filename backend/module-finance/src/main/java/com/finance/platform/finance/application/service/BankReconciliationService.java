@@ -154,12 +154,12 @@ public class BankReconciliationService {
 		int duplicates = 0;
 		int failed = parsed.errors().size();
 		for (ParsedBankRow row : parsed.validRows()) {
-			String accountScopedHash = account.getId() + ":" + row.rowHash();
-			if (bankTransactionRepository.existsByBankAccount_IdAndExternalRowHash(bankAccountId, accountScopedHash)) {
+			String rowHash = row.rowHash();
+			if (bankTransactionRepository.existsByBankAccount_IdAndExternalRowHash(bankAccountId, rowHash)) {
 				duplicates++;
 				continue;
 			}
-			BankTransaction txn = toEntity(client, account, batch, row, accountScopedHash);
+			BankTransaction txn = toEntity(client, account, batch, row, rowHash);
 			bankTransactionRepository.save(txn);
 			generateSuggestions(txn);
 			imported++;
