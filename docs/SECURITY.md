@@ -39,11 +39,11 @@ This document describes the security architecture implemented for V1. It is not 
 
 ## JWT security
 
-- HMAC-signed access tokens; refresh tokens stored server-side
+- HMAC-signed access tokens; refresh tokens stored server-side (hashed)
 - Invalid, expired, malformed, or tampered tokens leave the request unauthenticated (401)
 - Deactivated users fail authentication even with a previously issued token
-- Production profile: `ProductionJwtSecretValidator` rejects weak/default `JWT_SECRET`
-- Login/password-reset rate limiting: in-process `AuthRateLimiter` (20 attempts / 60s per key)
+- Production profile: `ProductionJwtSecretValidator` rejects weak/default secrets **and** the well-known `application-local.yml` development JWT value
+- Login rate limiting: in-process `AuthRateLimiter` (20 attempts / 60s per key)
 
 ## File upload
 
@@ -81,17 +81,17 @@ Configure at reverse proxy (Nginx/cloud):
 
 ## CSRF
 
-JWT is sent via `Authorization: Bearer` header, not cookies, for API calls. CSRF protection is disabled for the stateless API. If cookie-based refresh is introduced later, CSRF must be revisited.
+Access tokens remain Bearer headers (not cookies). Refresh uses an **HttpOnly** `fp_refresh` cookie (`Path=/api/v1/auth`, `SameSite=Lax`, `Secure` in prod). Cookie-authenticated auth POSTs validate `Origin` against `APP_CORS_ALLOWED_ORIGINS` when that list is non-empty. Full Spring CSRF is still disabled for the Bearer API.
 
 ## Frontend token storage
 
-V1 stores the access token in `localStorage` (`fp.session`). This is acceptable for V1 with short-lived access tokens and strong XSS hygiene; migrating refresh tokens to `HttpOnly` cookies is a Phase 10+ hardening item.
+Access tokens live **in memory only** (Angular signal). Refresh tokens are **not** stored in `localStorage`; the browser holds them in the httpOnly cookie. On SPA boot, `APP_INITIALIZER` calls `POST /api/v1/auth/refresh` with credentials to restore the session.
 
-The SPA auth interceptor refreshes on HTTP 401 (single in-flight refresh, one retry) and clears the session if refresh fails.
+The SPA auth interceptor refreshes on HTTP 401 (single in-flight refresh, one retry) and clears the in-memory session if refresh fails.
 
 ## Idempotency
 
-Mutating financial POSTs accept an `Idempotency-Key` header. The filter runs on the security chain after JWT authentication. The Angular `ApiService` sends a UUID key for create/approve/void expense & income, bank import/confirm, suggestion accept, and period close.
+Protected financial POSTs **require** an `Idempotency-Key` header (400 `IDEMPOTENCY_KEY_REQUIRED` if missing). The filter fingerprints `method + URI + body hash`. The Angular `ApiService` reuses a stable in-flight key for double-clicks/retries on create/approve/void, bank import/confirm, suggestion accept, and period close.
 
 ## Readiness
 
@@ -102,4 +102,4 @@ Mutating financial POSTs accept an `Idempotency-Key` header. The filter runs on 
 
 - No real secrets in repository
 - `.env.example` uses placeholders only
-- Production must provide strong `JWT_SECRET`, database credentials, and storage keys
+- Production must provide strong `APP_JWT_SECRET`, database credentials, and storage keys

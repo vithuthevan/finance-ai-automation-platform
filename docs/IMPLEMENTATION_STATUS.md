@@ -349,7 +349,7 @@ Accountants and administrators see actionable cross-module work; clients receive
 
 ### Phase 5
 
-- Angular 19 + Material workspace in `frontend/`
+- Angular 20 + Material workspace in `frontend/`
 - Role-based shell, login/register (tokenless register → login), owner and auditor surfaces
 
 ### Phase 6

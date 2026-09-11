@@ -45,7 +45,7 @@ Phases 1–8 are complete per [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS
 | AI | JDK HTTP → OpenAI-compatible `/chat/completions` | Optional; `none` / `mock` / `openai` modes |
 | Email | Spring Mail / log provider | Optional SMTP; default logs intent |
 | Excel export | **Apache POI OOXML** | Report XLSX in `module-reporting` |
-| Frontend | **Angular 19** + **Angular Material** + RxJS | Lazy-loaded standalone pages |
+| Frontend | **Angular 20** + **Angular Material** + RxJS | Lazy-loaded standalone pages |
 | Tests | Testcontainers (+ skip without Docker), Vitest | Tenant/JWT/upload/quota integration tests |
 | Ops | Docker Compose, Nginx, Caddy | [`docker-compose.yml`](../docker-compose.yml), [`deploy/`](../deploy/) |
 
@@ -67,7 +67,7 @@ Phases 1–8 are complete per [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS
 **Modular monolith:** HTTP adapters in `platform-app`, domain + application services in feature modules, shared kernel in `platform-core`. Single deployable JAR; module boundaries are package/Gradle, not network.
 
 ```
-Angular 19 SPA
+Angular 20 SPA
       │  Bearer JWT
       ▼
 platform-app controllers  (/api/v1)

@@ -9,7 +9,7 @@ Collect → Extract → Review → Approve → Reconcile → Close → Report
 ```
 finance-platform/
 ├── backend/     Spring Boot modular monolith (one JAR: platform-app)
-├── frontend/    Angular 19 workspace
+├── frontend/    Angular 20 workspace
 ├── deploy/      Nginx and hosting configuration
 └── docs/        Product and deployment notes
 ```
@@ -129,6 +129,8 @@ Base path: `/api/v1`
 
 ## Documentation
 
+- [New user guide (A–Z)](docs/USER_GUIDE.md)
+- [Critical code review findings](docs/CRITICAL_CODE_REVIEW_FINDINGS.md)
 - [Deep codebase onboarding](docs/CODEBASE_ONBOARDING.md)
 - [Architecture mastery — login & upload slice](docs/ARCHITECTURE_VERTICAL_SLICE.md)
 - [Architecture mastery — schema & security](docs/ARCHITECTURE_SCHEMA_SECURITY.md)
