@@ -11,6 +11,8 @@ public class LoggingEmailService implements EmailService {
 
 	@Override
 	public void send(String to, String subject, String body) {
-		log.info("Email [{}] to {}: {}", subject, to, body);
+		// Never log body — it may contain password-reset tokens or other secrets.
+		int bodyLength = body == null ? 0 : body.length();
+		log.info("Email [{}] to {} (bodyLength={})", subject, to, bodyLength);
 	}
 }
