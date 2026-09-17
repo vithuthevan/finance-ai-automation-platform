@@ -1,5 +1,7 @@
 package com.finance.platform.core.audit;
 
+import com.finance.platform.core.observability.ObservabilityMdc;
+import com.finance.platform.core.observability.RequestCorrelationFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,7 +18,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JpaAuditLogger implements AuditLogger {
 
-	private static final String CORRELATION_HEADER = "X-Request-Id";
 	private static final int MAX_USER_AGENT_LENGTH = 512;
 
 	private final AuditLogJpaRepository auditLogRepository;
@@ -61,10 +62,12 @@ public class JpaAuditLogger implements AuditLogger {
 		}
 
 		HttpServletRequest request = servletAttributes.getRequest();
-		String correlationId = request.getHeader(CORRELATION_HEADER);
-		log.setCorrelationId(correlationId != null && !correlationId.isBlank()
-				? correlationId
-				: UUID.randomUUID().toString());
+		String correlationId = ObservabilityMdc.currentRequestId();
+		if ("unknown".equals(correlationId)) {
+			String header = request.getHeader(RequestCorrelationFilter.REQUEST_ID_HEADER);
+			correlationId = header != null && !header.isBlank() ? header.trim() : UUID.randomUUID().toString();
+		}
+		log.setCorrelationId(correlationId);
 		log.setIpAddress(resolveClientIp(request));
 		log.setUserAgent(truncate(request.getHeader("User-Agent"), MAX_USER_AGENT_LENGTH));
 	}

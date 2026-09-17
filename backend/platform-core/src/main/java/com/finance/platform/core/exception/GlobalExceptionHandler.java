@@ -1,5 +1,9 @@
 package com.finance.platform.core.exception;
 
+import com.finance.platform.core.observability.ObservabilityMdc;
+import com.finance.platform.core.observability.SecurityEventLogger;
+import com.finance.platform.core.observability.StructuredLog;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -20,7 +24,10 @@ import java.util.Map;
 
 @Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+	private final SecurityEventLogger securityEventLogger;
 
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
@@ -82,6 +89,16 @@ public class GlobalExceptionHandler {
 		return detail;
 	}
 
+	@ExceptionHandler(RateLimitedException.class)
+	public ProblemDetail handleRateLimited(RateLimitedException ex) {
+		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.TOO_MANY_REQUESTS);
+		detail.setTitle("Too Many Requests");
+		detail.setDetail(ex.getMessage());
+		detail.setProperty("errorCode", ex.getErrorCode());
+		attachReferenceId(detail);
+		return detail;
+	}
+
 	@ExceptionHandler(BusinessException.class)
 	public ProblemDetail handleBusiness(BusinessException ex) {
 		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
@@ -103,12 +120,14 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(AccessDeniedException.class)
 	public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
+		securityEventLogger.permissionDenied(currentPath(), currentMethod());
 		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
 		detail.setTitle("Forbidden");
 		detail.setDetail(ex.getMessage() != null && !ex.getMessage().isBlank()
 				? ex.getMessage()
 				: "You do not have permission to perform this action.");
 		detail.setProperty("errorCode", reportAccessDenied(ex) ? ErrorCodes.REPORT_ACCESS_DENIED : ErrorCodes.ACCESS_DENIED);
+		attachReferenceId(detail);
 		return detail;
 	}
 
@@ -133,6 +152,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+		log.warn("Data integrity violation [requestId={}]: {}", ObservabilityMdc.currentRequestId(), causeMessage(ex));
 		if (isUniqueViolation(ex)) {
 			ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.CONFLICT);
 			detail.setTitle("Duplicate Resource");
@@ -162,13 +182,35 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ProblemDetail handleUnexpected(Exception ex) {
-		log.error("Unhandled exception", ex);
+		StructuredLog.error(log, "UNHANDLED_EXCEPTION",
+				StructuredLog.baseFields("ERROR"), ex);
 
 		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
 		detail.setTitle("Internal Server Error");
-		detail.setDetail("An unexpected error occurred.");
+		detail.setDetail("Something went wrong. Reference ID: " + ObservabilityMdc.currentRequestId());
 		detail.setProperty("errorCode", "INTERNAL_ERROR");
+		attachReferenceId(detail);
 		return detail;
+	}
+
+	private void attachReferenceId(ProblemDetail detail) {
+		detail.setProperty("referenceId", ObservabilityMdc.currentRequestId());
+	}
+
+	private String currentPath() {
+		var attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+		if (attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servletAttributes) {
+			return servletAttributes.getRequest().getRequestURI();
+		}
+		return "unknown";
+	}
+
+	private String currentMethod() {
+		var attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+		if (attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servletAttributes) {
+			return servletAttributes.getRequest().getMethod();
+		}
+		return "unknown";
 	}
 
 	private boolean reportAccessDenied(AccessDeniedException ex) {
