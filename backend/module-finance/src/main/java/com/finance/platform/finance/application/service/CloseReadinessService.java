@@ -103,8 +103,8 @@ public class CloseReadinessService {
 		if (bankTransactions > 0) {
 			long ignored = bankTransactionRepository.countByClientAndPeriodAndStatus(
 					clientId, from, to, com.finance.platform.finance.domain.model.BankTransaction.MatchStatus.IGNORED);
-			long actionable = bankTransactions - ignored;
-			reconciliationPercent = actionable == 0 ? 100 : (int) Math.round((matchedBank + ignored) * 100.0 / actionable);
+			reconciliationPercent = com.finance.platform.finance.application.banking.ReconciliationProgressPercent.compute(
+					bankTransactions, matchedBank, ignored);
 		}
 
 		return new PeriodReadinessResponse(

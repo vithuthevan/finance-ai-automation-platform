@@ -13,7 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
@@ -60,30 +59,23 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 			return;
 		}
 
-		// Spring 6.2+/Boot 4: ContentCachingRequestWrapper requires an explicit content-cache limit (bytes).
-		final int contentCacheLimit = 2 * 1024 * 1024;
-		ContentCachingRequestWrapper cachedRequest = request instanceof ContentCachingRequestWrapper wrapped
-				? wrapped
-				: new ContentCachingRequestWrapper(request, contentCacheLimit);
-
-		String contentType = cachedRequest.getContentType() == null ? "" : cachedRequest.getContentType();
+		String contentType = request.getContentType() == null ? "" : request.getContentType();
+		HttpServletRequest downstream = request;
 		String bodyHash;
 		if (contentType.toLowerCase().startsWith("multipart/")) {
 			// Avoid buffering large bank CSV uploads twice; scope key with size + type.
-			bodyHash = IdempotencyService.sha256("multipart:" + contentType + ":" + cachedRequest.getContentLengthLong());
+			bodyHash = IdempotencyService.sha256("multipart:" + contentType + ":" + request.getContentLengthLong());
 		} else {
-			byte[] bodyBytes = cachedRequest.getContentAsByteArray();
-			if (bodyBytes.length == 0) {
-				bodyBytes = cachedRequest.getInputStream().readAllBytes();
-			}
-			bodyHash = IdempotencyService.sha256(bodyBytes);
+			RepeatableBodyRequest repeatable = RepeatableBodyRequest.from(request);
+			downstream = repeatable;
+			bodyHash = IdempotencyService.sha256(repeatable.body());
 		}
 		String requestHash = IdempotencyService.sha256(
-				cachedRequest.getMethod() + " " + cachedRequest.getRequestURI() + " " + bodyHash);
+				downstream.getMethod() + " " + downstream.getRequestURI() + " " + bodyHash);
 
 		Optional<IdempotencyKey> existing;
 		try {
-			existing = idempotencyService.begin(rawKey, cachedRequest.getMethod(), cachedRequest.getRequestURI(), requestHash);
+			existing = idempotencyService.begin(rawKey, downstream.getMethod(), downstream.getRequestURI(), requestHash);
 		} catch (BusinessException ex) {
 			writeProblem(response, HttpServletResponse.SC_CONFLICT, ex.getErrorCode(), ex.getMessage());
 			return;
@@ -117,7 +109,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
 		ContentCachingResponseWrapper wrapped = new ContentCachingResponseWrapper(response);
 		try {
-			filterChain.doFilter(cachedRequest, wrapped);
+			filterChain.doFilter(downstream, wrapped);
 			if (wrapped.getStatus() < 500) {
 				String body = new String(wrapped.getContentAsByteArray(), StandardCharsets.UTF_8);
 				idempotencyService.complete(rawKey, wrapped.getStatus(), body);

@@ -20,6 +20,8 @@ public interface DocumentRequestJpaRepository extends JpaRepository<DocumentRequ
 
 	Optional<DocumentRequest> findByIdAndClient_Id(UUID id, UUID clientId);
 
+	Optional<DocumentRequest> findByIdAndClient_IdAndFirmId(UUID id, UUID clientId, UUID firmId);
+
 	long countByClient_IdAndStatus(UUID clientId, DocumentRequest.RequestStatus status);
 
 	@Query("""

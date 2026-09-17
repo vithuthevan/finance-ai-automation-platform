@@ -1,5 +1,6 @@
 package com.finance.platform.finance.application.service;
 
+import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
@@ -49,6 +50,7 @@ import com.finance.platform.finance.infrastructure.persistence.ReconciliationMat
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -160,7 +162,7 @@ public class BankReconciliationService {
 				continue;
 			}
 			BankTransaction txn = toEntity(client, account, batch, row, rowHash);
-			bankTransactionRepository.save(txn);
+			txn = bankTransactionRepository.save(txn);
 			generateSuggestions(txn);
 			imported++;
 		}
@@ -199,14 +201,11 @@ public class BankReconciliationService {
 	) {
 		clientAccessService.requireReadAccess(clientId);
 		int capped = Math.min(Math.max(size, 1), 100);
-		Page<BankTransaction> results = bankTransactionRepository.search(
-				clientId,
-				bankAccountId,
-				status,
-				from,
-				to,
-				blankToNull(query),
-				PageRequest.of(page, capped, Sort.by(Sort.Direction.DESC, "txnDate")));
+		Pageable pageable = PageRequest.of(page, capped, Sort.by(Sort.Direction.DESC, "txnDate"));
+		String q = blankToNull(query);
+		Page<BankTransaction> results = q == null
+				? bankTransactionRepository.searchFiltered(clientId, bankAccountId, status, from, to, pageable)
+				: bankTransactionRepository.searchWithText(clientId, bankAccountId, status, from, to, q, pageable);
 		return new PageResponse<>(
 				results.getContent().stream().map(this::toResponse).toList(),
 				results.getNumber(),
@@ -253,8 +252,8 @@ public class BankReconciliationService {
 				unmatchedValue = unmatchedValue.add(amount);
 			}
 		}
-		long actionable = rows.size() - ignored;
-		int percent = actionable == 0 ? 100 : (int) Math.round((matched + ignored) * 100.0 / actionable);
+		int percent = com.finance.platform.finance.application.banking.ReconciliationProgressPercent.compute(
+				rows.size(), matched, ignored);
 		return new ReconciliationSummaryResponse(
 				rows.size(), matched, suggested, unmatched, ignored, pending,
 				debits, credits, matchedValue, unmatchedValue, percent);
@@ -276,8 +275,9 @@ public class BankReconciliationService {
 				.confirmedAt(Instant.now())
 				.build();
 		match.setFirmId(bank.getFirmId());
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
 		if (expenseId != null) {
-			Expense expense = expenseRepository.findByIdAndClientId(expenseId, clientId)
+			Expense expense = expenseRepository.findByIdAndClient_IdAndFirmId(expenseId, clientId, firmId)
 					.orElseThrow(() -> new ResourceNotFoundException("Expense", expenseId));
 			validateDirection(bank, true);
 			validateLedgerMatch(expense.getStatus(), expense.getAmount(), bank.absoluteAmount());
@@ -286,7 +286,7 @@ public class BankReconciliationService {
 			}
 			match.setExpense(expense);
 		} else if (incomeId != null) {
-			Income income = incomeRepository.findByIdAndClientId(incomeId, clientId)
+			Income income = incomeRepository.findByIdAndClient_IdAndFirmId(incomeId, clientId, firmId)
 					.orElseThrow(() -> new ResourceNotFoundException("Income", incomeId));
 			validateDirection(bank, false);
 			validateLedgerMatch(income.getStatus(), income.getAmount(), bank.absoluteAmount());
@@ -491,7 +491,7 @@ public class BankReconciliationService {
 		assertReconciliationWritable(clientId, bank.getTxnDate());
 		rejectOpenSuggestions(bank);
 		generateSuggestions(bank);
-		return toResponse(bankTransactionRepository.findById(bankTransactionId).orElse(bank));
+		return toResponse(requireBank(clientId, bankTransactionId));
 	}
 
 	@Transactional(readOnly = true)
@@ -553,7 +553,8 @@ public class BankReconciliationService {
 	}
 
 	private BankTransaction requireBank(UUID clientId, UUID id) {
-		return bankTransactionRepository.findByIdAndClient_Id(id, clientId)
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		return bankTransactionRepository.findByIdAndClient_IdAndFirmId(id, clientId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Bank transaction", id));
 	}
 
@@ -585,7 +586,7 @@ public class BankReconciliationService {
 		BankTransaction.TransactionDirection direction = row.credit() != null && row.credit().signum() > 0
 				? BankTransaction.TransactionDirection.CREDIT
 				: BankTransaction.TransactionDirection.DEBIT;
-		return BankTransaction.builder()
+		BankTransaction txn = BankTransaction.builder()
 				.client(client)
 				.bankAccount(account)
 				.bankImport(batch)
@@ -601,6 +602,8 @@ public class BankReconciliationService {
 				.externalRowHash(hash)
 				.matchStatus(BankTransaction.MatchStatus.UNMATCHED)
 				.build();
+		txn.setFirmId(client.getFirmId());
+		return txn;
 	}
 
 	private void saveProfile(Client client, BankAccount account, CsvColumnMapping mapping, String profileName) {

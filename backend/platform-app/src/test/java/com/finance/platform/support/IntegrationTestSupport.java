@@ -1,6 +1,7 @@
 package com.finance.platform.support;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.finance.platform.auth.application.dto.LoginRequest;
 import com.finance.platform.auth.application.dto.LoginResponse;
 import com.finance.platform.auth.application.dto.RegisterRequest;
@@ -27,7 +28,7 @@ public class IntegrationTestSupport {
 
 	public IntegrationTestSupport(MockMvc mockMvc, RoleJpaRepository roleRepository) {
 		this.mockMvc = mockMvc;
-		this.objectMapper = new ObjectMapper();
+		this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 		this.roleRepository = roleRepository;
 	}
 

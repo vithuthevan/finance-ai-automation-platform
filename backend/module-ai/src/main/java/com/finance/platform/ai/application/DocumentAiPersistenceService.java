@@ -101,7 +101,8 @@ public class DocumentAiPersistenceService {
 			}
 		}
 		if (suggestion.suggestedCategoryId() != null) {
-			categoryRepository.findById(suggestion.suggestedCategoryId()).ifPresent(current::setSuggestedCategory);
+			categoryRepository.findByIdAndFirmIdAndDeletedAtIsNull(suggestion.suggestedCategoryId(), current.getFirmId())
+					.ifPresent(current::setSuggestedCategory);
 		} else {
 			current.setSuggestedCategory(null);
 		}

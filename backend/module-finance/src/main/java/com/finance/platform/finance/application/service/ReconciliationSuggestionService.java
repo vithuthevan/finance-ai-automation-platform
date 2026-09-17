@@ -108,11 +108,13 @@ public class ReconciliationSuggestionService {
 				.confidence(suggestion.confidence())
 				.build();
 		match.setFirmId(bank.getFirmId());
+		UUID clientId = bank.getClient().getId();
+		UUID firmId = bank.getFirmId();
 		if ("EXPENSE".equals(suggestion.ledgerType())) {
-			match.setExpense(expenseRepository.findByIdAndClientId(suggestion.ledgerId(), bank.getClient().getId())
+			match.setExpense(expenseRepository.findByIdAndClient_IdAndFirmId(suggestion.ledgerId(), clientId, firmId)
 					.orElse(null));
 		} else if ("INCOME".equals(suggestion.ledgerType())) {
-			match.setIncome(incomeRepository.findByIdAndClientId(suggestion.ledgerId(), bank.getClient().getId())
+			match.setIncome(incomeRepository.findByIdAndClient_IdAndFirmId(suggestion.ledgerId(), clientId, firmId)
 					.orElse(null));
 		}
 		return matchRepository.save(match);

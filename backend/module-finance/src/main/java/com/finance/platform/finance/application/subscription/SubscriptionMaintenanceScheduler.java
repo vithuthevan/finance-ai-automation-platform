@@ -3,6 +3,7 @@ package com.finance.platform.finance.application.subscription;
 import com.finance.platform.finance.domain.model.FirmSubscription;
 import com.finance.platform.finance.domain.model.PlanChangeRequest;
 import com.finance.platform.finance.infrastructure.persistence.FirmSubscriptionJpaRepository;
+import com.finance.platform.core.observability.ScheduledJobLogging;
 import com.finance.platform.finance.infrastructure.persistence.PlanChangeRequestJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,12 +27,15 @@ public class SubscriptionMaintenanceScheduler {
 	@Scheduled(cron = "${app.subscription.maintenance-cron:0 30 7 * * *}")
 	@Transactional
 	public void maintainSubscriptions() {
-		List<FirmSubscription> subscriptions = subscriptionRepository.findAll();
-		for (FirmSubscription subscription : subscriptions) {
-			handleTrial(subscription);
-			handlePeriodRollover(subscription);
-			notifyUsage(subscription);
-		}
+		ScheduledJobLogging.run("SUBSCRIPTION_MAINTENANCE", () -> {
+			List<FirmSubscription> subscriptions = subscriptionRepository.findAll();
+			for (FirmSubscription subscription : subscriptions) {
+				handleTrial(subscription);
+				handlePeriodRollover(subscription);
+				notifyUsage(subscription);
+			}
+			return subscriptions.size();
+		});
 	}
 
 	private void handleTrial(FirmSubscription subscription) {

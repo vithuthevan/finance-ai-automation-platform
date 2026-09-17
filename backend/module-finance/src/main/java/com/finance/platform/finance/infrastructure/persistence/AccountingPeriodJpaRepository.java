@@ -20,9 +20,18 @@ public interface AccountingPeriodJpaRepository extends JpaRepository<AccountingP
 
 	Optional<AccountingPeriod> findByIdAndClient_Id(UUID id, UUID clientId);
 
+	Optional<AccountingPeriod> findByIdAndClient_IdAndFirmId(UUID id, UUID clientId, UUID firmId);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select p from AccountingPeriod p where p.id = :id and p.client.id = :clientId")
 	Optional<AccountingPeriod> findByIdAndClient_IdForUpdate(@Param("id") UUID id, @Param("clientId") UUID clientId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select p from AccountingPeriod p where p.id = :id and p.client.id = :clientId and p.firmId = :firmId")
+	Optional<AccountingPeriod> findByIdAndClient_IdAndFirmIdForUpdate(
+			@Param("id") UUID id,
+			@Param("clientId") UUID clientId,
+			@Param("firmId") UUID firmId);
 
 	@Query("""
 			select p from AccountingPeriod p
@@ -33,6 +42,22 @@ public interface AccountingPeriodJpaRepository extends JpaRepository<AccountingP
 			where p.id = :id and p.client.id = :clientId
 			""")
 	Optional<AccountingPeriod> findDetailedByIdAndClient_Id(@Param("id") UUID id, @Param("clientId") UUID clientId);
+
+	@Query("""
+			select p from AccountingPeriod p
+			left join fetch p.client
+			left join fetch p.closedBy
+			left join fetch p.reviewStartedBy
+			left join fetch p.reopenedBy
+			where p.id = :id and p.client.id = :clientId and p.firmId = :firmId
+			""")
+	Optional<AccountingPeriod> findDetailedByIdAndClient_IdAndFirmId(
+			@Param("id") UUID id,
+			@Param("clientId") UUID clientId,
+			@Param("firmId") UUID firmId);
+
+	Optional<AccountingPeriod> findByClient_IdAndFirmIdAndPeriodYearAndPeriodMonth(
+			UUID clientId, UUID firmId, int year, int month);
 
 	@Query("""
 			select p from AccountingPeriod p

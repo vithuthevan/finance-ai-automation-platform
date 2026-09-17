@@ -122,7 +122,7 @@ public class AiExtractionMetadata {
 	private Integer outputTokens;
 
 	@Column(name = "processing_attempt_count")
-	private Integer processingAttemptCount;
+	private Integer processingAttemptCount = 0;
 
 	public enum ExtractionStatus {
 		NOT_STARTED, PENDING, PROCESSING, COMPLETED, FAILED, AI_DISABLED

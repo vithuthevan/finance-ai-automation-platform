@@ -107,6 +107,7 @@ public class DocumentService {
 		try {
 			AiExtractionMetadata metadata = AiExtractionMetadata.builder()
 					.extractionStatus(AiExtractionMetadata.ExtractionStatus.NOT_STARTED)
+					.processingAttemptCount(0)
 					.build();
 			Receipt receipt = Receipt.builder()
 					.client(client)

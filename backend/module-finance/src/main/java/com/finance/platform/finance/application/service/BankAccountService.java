@@ -1,5 +1,6 @@
 package com.finance.platform.finance.application.service;
 
+import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
@@ -99,7 +100,8 @@ public class BankAccountService {
 	}
 
 	BankAccount requireAccount(UUID clientId, UUID accountId) {
-		return bankAccountRepository.findByIdAndClient_Id(accountId, clientId)
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		return bankAccountRepository.findByIdAndClient_IdAndFirmId(accountId, clientId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Bank account", accountId));
 	}
 

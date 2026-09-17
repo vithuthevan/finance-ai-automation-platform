@@ -1,6 +1,7 @@
 package com.finance.platform.finance.application.service;
 
 import com.finance.platform.auth.domain.model.User;
+import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
@@ -80,7 +81,8 @@ public class PeriodCloseService {
 	public PeriodResponse getOrCreate(UUID clientId, int year, int month) {
 		validateMonth(year, month);
 		Client client = clientAccessService.requireWriteAccess(clientId);
-		return periodRepository.findByClient_IdAndPeriodYearAndPeriodMonth(clientId, year, month)
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		return periodRepository.findByClient_IdAndFirmIdAndPeriodYearAndPeriodMonth(clientId, firmId, year, month)
 				.map(period -> toResponse(period, client, evaluate(period)))
 				.orElseGet(() -> createMonth(client, year, month));
 	}
@@ -116,7 +118,8 @@ public class PeriodCloseService {
 	@Transactional
 	public PeriodResponse close(UUID clientId, UUID periodId, String closeNote) {
 		Client client = clientAccessService.requireApproveAccess(clientId);
-		AccountingPeriod period = periodRepository.findByIdAndClient_IdForUpdate(periodId, clientId)
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		AccountingPeriod period = periodRepository.findByIdAndClient_IdAndFirmIdForUpdate(periodId, clientId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Accounting period", periodId));
 		if (period.isClosed()) {
 			throw new BusinessException(ErrorCodes.PERIOD_ALREADY_CLOSED, "Period is already closed");
@@ -342,7 +345,8 @@ public class PeriodCloseService {
 	}
 
 	private AccountingPeriod requirePeriod(UUID clientId, UUID periodId) {
-		return periodRepository.findDetailedByIdAndClient_Id(periodId, clientId)
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		return periodRepository.findDetailedByIdAndClient_IdAndFirmId(periodId, clientId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Accounting period", periodId));
 	}
 

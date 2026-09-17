@@ -44,4 +44,8 @@ public interface ReceiptJpaRepository extends JpaRepository<Receipt, UUID>, JpaS
 	long countByClientIdAndUploadedAtGreaterThanEqualAndDeletedAtIsNull(UUID clientId, Instant uploadedAt);
 
 	long countByFirmIdAndAiMetadata_ReviewOutcome(UUID firmId, String reviewOutcome);
+
+	long countByDeletedAtIsNull();
+
+	long countByStatusAndDeletedAtIsNull(ReceiptStatus status);
 }

@@ -38,6 +38,8 @@ public interface BankTransactionJpaRepository extends JpaRepository<BankTransact
 
 	Optional<BankTransaction> findByIdAndClient_Id(UUID id, UUID clientId);
 
+	Optional<BankTransaction> findByIdAndClient_IdAndFirmId(UUID id, UUID clientId, UUID firmId);
+
 	@Query("""
 			select count(t) from BankTransaction t
 			where t.client.id = :clientId
@@ -72,10 +74,26 @@ public interface BankTransactionJpaRepository extends JpaRepository<BankTransact
 			  and (:status is null or t.matchStatus = :status)
 			  and (:from is null or t.txnDate >= :from)
 			  and (:to is null or t.txnDate <= :to)
-			  and (:q is null or lower(coalesce(t.description, '')) like lower(concat('%', :q, '%'))
+			""")
+	Page<BankTransaction> searchFiltered(
+			@Param("clientId") UUID clientId,
+			@Param("bankAccountId") UUID bankAccountId,
+			@Param("status") BankTransaction.MatchStatus status,
+			@Param("from") LocalDate from,
+			@Param("to") LocalDate to,
+			Pageable pageable);
+
+	@Query("""
+			select t from BankTransaction t
+			where t.client.id = :clientId
+			  and (:bankAccountId is null or t.bankAccount.id = :bankAccountId)
+			  and (:status is null or t.matchStatus = :status)
+			  and (:from is null or t.txnDate >= :from)
+			  and (:to is null or t.txnDate <= :to)
+			  and (lower(coalesce(t.description, '')) like lower(concat('%', :q, '%'))
 			       or lower(coalesce(t.referenceNo, '')) like lower(concat('%', :q, '%')))
 			""")
-	Page<BankTransaction> search(
+	Page<BankTransaction> searchWithText(
 			@Param("clientId") UUID clientId,
 			@Param("bankAccountId") UUID bankAccountId,
 			@Param("status") BankTransaction.MatchStatus status,

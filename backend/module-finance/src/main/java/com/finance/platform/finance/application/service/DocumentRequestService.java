@@ -1,5 +1,6 @@
 package com.finance.platform.finance.application.service;
 
+import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
@@ -86,7 +87,8 @@ public class DocumentRequestService {
 		}
 		AccountingPeriod period = null;
 		if (periodId != null) {
-			period = periodRepository.findByIdAndClient_Id(periodId, clientId)
+			UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+			period = periodRepository.findByIdAndClient_IdAndFirmId(periodId, clientId, firmId)
 					.orElseThrow(() -> new ResourceNotFoundException("Accounting period", periodId));
 		}
 		DocumentRequest request = DocumentRequest.builder()
@@ -229,7 +231,8 @@ public class DocumentRequestService {
 	}
 
 	private DocumentRequest requireRequest(UUID clientId, UUID requestId) {
-		return requestRepository.findByIdAndClient_Id(requestId, clientId)
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		return requestRepository.findByIdAndClient_IdAndFirmId(requestId, clientId, firmId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document request", requestId));
 	}
 

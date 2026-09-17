@@ -15,5 +15,7 @@ public interface BankAccountJpaRepository extends JpaRepository<BankAccount, UUI
 
 	Optional<BankAccount> findByIdAndClient_Id(UUID id, UUID clientId);
 
+	Optional<BankAccount> findByIdAndClient_IdAndFirmId(UUID id, UUID clientId, UUID firmId);
+
 	long countByClient_IdAndActiveTrue(UUID clientId);
 }
