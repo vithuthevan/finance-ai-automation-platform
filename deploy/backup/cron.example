@@ -1,0 +1,11 @@
+# Finance Platform backup — install on the production VPS after deployment.
+# Edit paths if APP_ROOT differs.
+#
+# Copy to /etc/cron.d/finance-platform-backup
+#   sudo cp deploy/backup/cron.example /etc/cron.d/finance-platform-backup
+#
+# Daily at 02:00 — full backup run (postgres + documents + off-site sync)
+0 2 * * * root /opt/finance-ai-automation-platform/deploy/backup/run-backup.sh >> /var/log/finance-platform/cron-backup.log 2>&1
+#
+# Detect missing daily backup file (UTC date). Logs BACKUP_RUN_FAILED for log shippers.
+30 2 * * * root test -n "$(find /var/backups/finance-platform/postgres -maxdepth 1 -name "finance-platform-$(date -u +\%Y\%m\%d)*.sql.gz" ! -name "*.tmp" -print -quit)" || logger -t finance-platform-backup -p user.err "BACKUP_RUN_FAILED event=backup_missing reason=no_postgres_dump_today"

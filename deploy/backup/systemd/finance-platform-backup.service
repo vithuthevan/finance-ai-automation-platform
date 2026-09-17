@@ -1,0 +1,18 @@
+[Unit]
+Description=Finance Platform scheduled backup (PostgreSQL + documents + off-site sync)
+Documentation=file:///opt/finance-ai-automation-platform/BACKUP_RECOVERY_IMPLEMENTATION.md
+After=docker.service
+Requires=docker.service
+OnFailure=finance-platform-backup-alert.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/finance-ai-automation-platform
+Environment=BACKUP_ENV_FILE=/opt/finance-ai-automation-platform/deploy/backup/backup.env
+SyslogIdentifier=finance-platform-backup
+ExecStart=/opt/finance-ai-automation-platform/deploy/backup/run-backup.sh
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target

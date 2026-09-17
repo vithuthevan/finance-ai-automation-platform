@@ -17,6 +17,7 @@ frontend/.angular/
 
 ### Secrets and local data ###
 .env
+deploy/backup/backup.env
 data/
 uploads/
 *.log
