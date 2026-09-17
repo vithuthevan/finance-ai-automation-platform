@@ -8,6 +8,7 @@ import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
 import com.finance.platform.core.audit.AuditResourceType;
+import com.finance.platform.auth.infrastructure.security.PasswordPolicy;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.DuplicateResourceException;
 import lombok.RequiredArgsConstructor;
@@ -27,12 +28,14 @@ public class UserRegistrationService {
 	private final RoleJpaRepository roleRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final AuditLogger auditLogger;
+	private final EmailVerificationService emailVerificationService;
 
 	@Transactional
 	public User registerAdmin(UUID firmId, String email, String rawPassword, String fullName) {
 		if (userRepository.findByEmailAndDeletedAtIsNull(email).isPresent()) {
 			throw new DuplicateResourceException("User", "email", email);
 		}
+		PasswordPolicy.validate(rawPassword, "password");
 
 		Role adminRole = roleRepository.findByCode(Role.RoleCode.ADMIN)
 				.orElseThrow(() -> new BusinessException("Admin role not configured"));
@@ -47,6 +50,8 @@ public class UserRegistrationService {
 		user.setFirmId(firmId);
 
 		User saved = userRepository.save(user);
+		emailVerificationService.markVerifiedIfNotRequired(saved);
+		emailVerificationService.sendVerificationEmail(saved);
 
 		Map<String, Object> after = new LinkedHashMap<>();
 		after.put("email", saved.getEmail());

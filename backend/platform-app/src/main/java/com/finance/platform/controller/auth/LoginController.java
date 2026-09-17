@@ -3,12 +3,18 @@ package com.finance.platform.controller.auth;
 import com.finance.platform.auth.application.dto.LoginRequest;
 import com.finance.platform.auth.application.dto.LoginResponse;
 import com.finance.platform.auth.application.service.AuthenticationService;
+import com.finance.platform.auth.application.service.EmailVerificationService;
 import com.finance.platform.auth.application.service.SessionService;
+import com.finance.platform.auth.infrastructure.security.AuthRateLimiter;
 import com.finance.platform.auth.infrastructure.security.AuthRefreshCookieSupport;
+import com.finance.platform.auth.infrastructure.security.HttpRequestSupport;
 import com.finance.platform.core.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,7 +28,9 @@ public class LoginController {
 
 	private final AuthenticationService authenticationService;
 	private final SessionService sessionService;
+	private final EmailVerificationService emailVerificationService;
 	private final AuthRefreshCookieSupport refreshCookies;
+	private final AuthRateLimiter authRateLimiter;
 
 	@PostMapping("/login")
 	public LoginResponse login(
@@ -31,7 +39,7 @@ public class LoginController {
 			HttpServletResponse httpResponse
 	) {
 		refreshCookies.assertOriginAllowed(httpRequest);
-		LoginResponse issued = authenticationService.login(request);
+		LoginResponse issued = authenticationService.login(request, HttpRequestSupport.resolveClientIp(httpRequest));
 		refreshCookies.setRefreshCookie(httpResponse, issued.refreshToken());
 		return withoutRefreshToken(issued);
 	}
@@ -43,6 +51,7 @@ public class LoginController {
 			HttpServletResponse httpResponse
 	) {
 		refreshCookies.assertOriginAllowed(httpRequest);
+		authRateLimiter.checkAllowed("refresh:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
 		String raw = resolveRefreshToken(request, httpRequest);
 		LoginResponse issued = sessionService.refresh(raw);
 		refreshCookies.setRefreshCookie(httpResponse, issued.refreshToken());
@@ -61,17 +70,28 @@ public class LoginController {
 	}
 
 	@PostMapping("/forgot-password")
-	public void forgotPassword(@RequestBody EmailRequest request) {
+	public void forgotPassword(@Valid @RequestBody EmailRequest request, HttpServletRequest httpRequest) {
+		authRateLimiter.checkAllowed("forgot:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
+		if (request.email() != null && !request.email().isBlank()) {
+			authRateLimiter.checkAllowed("forgot:" + request.email());
+		}
 		sessionService.requestPasswordReset(request.email());
 	}
 
 	@PostMapping("/reset-password")
 	public void resetPassword(
-			@RequestBody ResetRequest request,
+			@Valid @RequestBody ResetRequest request,
+			HttpServletRequest httpRequest,
 			HttpServletResponse httpResponse
 	) {
+		authRateLimiter.checkAllowed("reset:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
 		sessionService.resetPassword(request.token(), request.newPassword());
 		refreshCookies.clearRefreshCookie(httpResponse);
+	}
+
+	@PostMapping("/verify-email")
+	public void verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+		emailVerificationService.verifyEmail(request.token());
 	}
 
 	private String resolveRefreshToken(TokenRequest request, HttpServletRequest httpRequest) {
@@ -103,9 +123,15 @@ public class LoginController {
 	public record TokenRequest(String refreshToken) {
 	}
 
-	public record EmailRequest(String email) {
+	public record EmailRequest(@NotBlank @Email String email) {
 	}
 
-	public record ResetRequest(String token, String newPassword) {
+	public record ResetRequest(
+			@NotBlank String token,
+			@NotBlank @Size(min = 8, max = 100) String newPassword
+	) {
+	}
+
+	public record VerifyEmailRequest(@NotBlank String token) {
 	}
 }

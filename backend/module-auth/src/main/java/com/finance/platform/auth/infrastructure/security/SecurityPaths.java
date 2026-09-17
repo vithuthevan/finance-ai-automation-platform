@@ -10,10 +10,13 @@ public final class SecurityPaths {
 	public static final String AUTH_FORGOT = API_V1 + "/auth/forgot-password";
 	public static final String AUTH_RESET = API_V1 + "/auth/reset-password";
 	public static final String AUTH_LOGOUT = API_V1 + "/auth/logout";
+	public static final String AUTH_VERIFY_EMAIL = API_V1 + "/auth/verify-email";
 
 	public static final String EXPENSES = API_V1 + "/clients/*/expenses/**";
 
 	public static final String HEALTH = API_V1 + "/health";
+
+	public static final String ACTUATOR_HEALTH = "/actuator/health";
 
 	public static final String[] OPENAPI = {
 			"/v3/api-docs",

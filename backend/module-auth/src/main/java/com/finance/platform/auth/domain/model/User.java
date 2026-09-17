@@ -48,6 +48,7 @@ public class User extends TenantAwareEntity {
 	private boolean active = true;
 
 	private Instant lastLoginAt;
+	private Instant emailVerifiedAt;
 	private Instant deletedAt;
 
 	@OneToMany(mappedBy = "user")

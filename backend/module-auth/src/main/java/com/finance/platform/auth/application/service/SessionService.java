@@ -7,10 +7,19 @@ import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.PasswordResetTokenJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.RefreshTokenJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
+import com.finance.platform.auth.infrastructure.security.PasswordPolicy;
+import com.finance.platform.core.audit.AuditAction;
+import com.finance.platform.core.audit.AuditEvent;
+import com.finance.platform.core.audit.AuditLogger;
+import com.finance.platform.core.audit.AuditOutcome;
+import com.finance.platform.core.audit.AuditResourceType;
+import com.finance.platform.core.observability.SecurityEventLogger;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.ValidationException;
 import com.finance.platform.core.notification.EmailService;
+import com.finance.platform.core.notification.EmailTemplateService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +30,14 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SessionService {
 
 	private final RefreshTokenJpaRepository refreshTokenRepository;
@@ -33,7 +46,10 @@ public class SessionService {
 	private final JwtService jwtService;
 	private final PasswordEncoder passwordEncoder;
 	private final EmailService emailService;
+	private final EmailTemplateService emailTemplateService;
 	private final com.finance.platform.auth.api.UserFacade userFacade;
+	private final AuditLogger auditLogger;
+	private final SecurityEventLogger securityEventLogger;
 
 	@Transactional
 	public String issueRefreshToken(User user) {
@@ -49,9 +65,15 @@ public class SessionService {
 
 	@Transactional
 	public LoginResponse refresh(String refreshToken) {
-		RefreshToken stored = refreshTokenRepository.findByTokenHash(sha256(refreshToken))
-				.filter(RefreshToken::isActive)
-				.orElseThrow(() -> new BusinessException("Refresh token is invalid or expired"));
+		Optional<RefreshToken> storedOpt = refreshTokenRepository.findByTokenHash(sha256(refreshToken));
+		if (storedOpt.isEmpty()) {
+			throw new BusinessException("Refresh token is invalid or expired");
+		}
+		RefreshToken stored = storedOpt.get();
+		if (!stored.isActive()) {
+			handleRefreshTokenReuse(stored);
+			throw new BusinessException("Refresh token is invalid or expired");
+		}
 		stored.setRevokedAt(Instant.now());
 		refreshTokenRepository.save(stored);
 		User user = stored.getUser();
@@ -86,19 +108,38 @@ public class SessionService {
 		refreshTokenRepository.findByTokenHash(sha256(refreshToken)).ifPresent(token -> {
 			token.setRevokedAt(Instant.now());
 			refreshTokenRepository.save(token);
+			User user = token.getUser();
+			if (user != null) {
+				recordLogout(user);
+			}
 		});
 	}
 
 	@Transactional
 	public void requestPasswordReset(String email) {
 		userRepository.findByEmailAndDeletedAtIsNull(email).ifPresent(user -> {
+			invalidateUnusedPasswordResetTokens(user.getId());
 			String raw = randomToken();
 			passwordResetTokenRepository.save(PasswordResetToken.builder()
 					.user(user)
 					.tokenHash(sha256(raw))
 					.expiresAt(Instant.now().plus(2, ChronoUnit.HOURS))
 					.build());
-			emailService.send(user.getEmail(), "Password reset", "Use this reset token: " + raw);
+			String link = emailTemplateService.absolute("/reset-password?token=" + raw);
+			emailService.send(user.getEmail(), "Password reset",
+					"Use the link below to reset your password. This link expires in 2 hours.\n\nReset: " + link);
+			Map<String, Object> metadata = new LinkedHashMap<>();
+			metadata.put("email", user.getEmail());
+			securityEventLogger.passwordResetRequested(user.getId(), user.getFirmId(), user.getEmail());
+			auditLogger.recordIndependent(AuditEvent.builder()
+					.firmId(user.getFirmId())
+					.actorUserId(user.getId())
+					.actorRole(user.getRole().getCode().name())
+					.action(AuditAction.PASSWORD_RESET_REQUESTED)
+					.resourceType(AuditResourceType.AUTH)
+					.resourceId(user.getId())
+					.metadata(metadata)
+					.build());
 		});
 	}
 
@@ -109,15 +150,71 @@ public class SessionService {
 		if (stored.getUsedAt() != null || stored.getExpiresAt().isBefore(Instant.now())) {
 			throw new ValidationException("token", "Reset token is expired");
 		}
-		if (newPassword == null || newPassword.length() < 8) {
-			throw new ValidationException("newPassword", "Password must be at least 8 characters");
-		}
+		PasswordPolicy.validate(newPassword, "newPassword");
 		User user = stored.getUser();
 		user.setPasswordHash(passwordEncoder.encode(newPassword));
 		userRepository.save(user);
 		stored.setUsedAt(Instant.now());
 		passwordResetTokenRepository.save(stored);
 		refreshTokenRepository.deleteByUser_Id(user.getId());
+		Map<String, Object> metadata = new LinkedHashMap<>();
+		metadata.put("email", user.getEmail());
+		securityEventLogger.passwordResetCompleted(user.getId(), user.getFirmId(), user.getEmail());
+		auditLogger.recordIndependent(AuditEvent.builder()
+				.firmId(user.getFirmId())
+				.actorUserId(user.getId())
+				.actorRole(user.getRole().getCode().name())
+				.action(AuditAction.PASSWORD_RESET_COMPLETED)
+				.resourceType(AuditResourceType.AUTH)
+				.resourceId(user.getId())
+				.metadata(metadata)
+				.build());
+	}
+
+	private void handleRefreshTokenReuse(RefreshToken stored) {
+		if (stored.getRevokedAt() == null) {
+			return;
+		}
+		User user = stored.getUser();
+		if (user == null) {
+			return;
+		}
+		securityEventLogger.tokenReuseDetected(user.getId(), user.getFirmId(), user.getEmail());
+		revokeAllForUser(user.getId());
+		Map<String, Object> metadata = new LinkedHashMap<>();
+		metadata.put("email", user.getEmail());
+		auditLogger.recordIndependent(AuditEvent.builder()
+				.firmId(user.getFirmId())
+				.actorUserId(user.getId())
+				.actorRole(user.getRole().getCode().name())
+				.action(AuditAction.TOKEN_REUSE_DETECTED)
+				.resourceType(AuditResourceType.AUTH)
+				.resourceId(user.getId())
+				.metadata(metadata)
+				.outcome(AuditOutcome.FAILURE)
+				.build());
+	}
+
+	private void invalidateUnusedPasswordResetTokens(UUID userId) {
+		for (PasswordResetToken token : passwordResetTokenRepository.findByUser_IdAndUsedAtIsNull(userId)) {
+			token.setUsedAt(Instant.now());
+			passwordResetTokenRepository.save(token);
+		}
+	}
+
+	private void recordLogout(User user) {
+		Map<String, Object> metadata = new LinkedHashMap<>();
+		metadata.put("email", user.getEmail());
+		securityEventLogger.logout(user.getId(), user.getFirmId(), user.getEmail());
+		auditLogger.record(AuditEvent.builder()
+				.firmId(user.getFirmId())
+				.actorUserId(user.getId())
+				.actorRole(user.getRole().getCode().name())
+				.action(AuditAction.LOGOUT)
+				.resourceType(AuditResourceType.AUTH)
+				.resourceId(user.getId())
+				.metadata(metadata)
+				.build());
 	}
 
 	private static String randomToken() {

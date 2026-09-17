@@ -15,6 +15,7 @@ import com.finance.platform.auth.domain.model.UserClientAccess;
 import com.finance.platform.auth.infrastructure.persistence.RoleJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserClientAccessJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
+import com.finance.platform.auth.infrastructure.security.PasswordPolicy;
 import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.audit.AuditAction;
@@ -38,6 +39,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -123,6 +125,7 @@ public class UserService {
 			requireActiveClientInCurrentFirm(assignment.clientId(), firmId);
 		}
 		subscriptionQuotaGuard.assertCanCreateActiveUser(firmId);
+		PasswordPolicy.validate(request.password(), "password");
 
 		User user = User.builder()
 				.role(role)
@@ -130,6 +133,7 @@ public class UserService {
 				.passwordHash(passwordEncoder.encode(request.password()))
 				.fullName(request.fullName())
 				.active(true)
+				.emailVerifiedAt(Instant.now())
 				.build();
 		user.setFirmId(firmId);
 		user = userRepository.save(user);
@@ -278,8 +282,10 @@ public class UserService {
 		if (request.currentPassword().equals(request.newPassword())) {
 			throw new ValidationException("newPassword", "New password must be different from the current password");
 		}
+		PasswordPolicy.validate(request.newPassword(), "newPassword");
 		user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
 		userRepository.save(user);
+		sessionService.revokeAllForUser(user.getId());
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(user.getFirmId())
 				.action(AuditAction.USER_PASSWORD_CHANGED)

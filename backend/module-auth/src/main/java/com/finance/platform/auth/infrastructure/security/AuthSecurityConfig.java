@@ -22,11 +22,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, AuthProperties.class})
 @RequiredArgsConstructor
 public class AuthSecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final com.finance.platform.core.observability.TenantMdcFilter tenantMdcFilter;
 	private final IdempotencyFilter idempotencyFilter;
 	private final JwtAuthenticationEntryPoint authenticationEntryPoint;
 	private final UserDetailsService userDetailsService;
@@ -35,6 +36,15 @@ public class AuthSecurityConfig {
 	@Bean
 	FilterRegistrationBean<IdempotencyFilter> disableServletIdempotencyFilter(IdempotencyFilter filter) {
 		FilterRegistrationBean<IdempotencyFilter> registration = new FilterRegistrationBean<>(filter);
+		registration.setEnabled(false);
+		return registration;
+	}
+
+	@Bean
+	FilterRegistrationBean<com.finance.platform.core.observability.TenantMdcFilter> disableServletTenantMdcFilter(
+			com.finance.platform.core.observability.TenantMdcFilter filter) {
+		FilterRegistrationBean<com.finance.platform.core.observability.TenantMdcFilter> registration =
+				new FilterRegistrationBean<>(filter);
 		registration.setEnabled(false);
 		return registration;
 	}
@@ -56,6 +66,9 @@ public class AuthSecurityConfig {
 						.contentTypeOptions(contentType -> {
 						})
 						.frameOptions(frame -> frame.deny())
+						.httpStrictTransportSecurity(hsts -> hsts
+								.includeSubDomains(true)
+								.maxAgeInSeconds(31536000))
 						.referrerPolicy(referrer -> referrer.policy(
 								org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 				)
@@ -64,9 +77,11 @@ public class AuthSecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, SecurityPaths.AUTH_LOGIN, SecurityPaths.AUTH_REGISTER,
 								SecurityPaths.AUTH_REFRESH, SecurityPaths.AUTH_FORGOT, SecurityPaths.AUTH_RESET,
-								SecurityPaths.AUTH_LOGOUT)
+								SecurityPaths.AUTH_LOGOUT, SecurityPaths.AUTH_VERIFY_EMAIL)
 						.permitAll()
 						.requestMatchers(SecurityPaths.HEALTH, SecurityPaths.HEALTH + "/**", "/error")
+						.permitAll()
+						.requestMatchers(SecurityPaths.ACTUATOR_HEALTH, SecurityPaths.ACTUATOR_HEALTH + "/**")
 						.permitAll()
 						.requestMatchers(SecurityPaths.OPENAPI)
 						.permitAll()
@@ -78,6 +93,7 @@ public class AuthSecurityConfig {
 						.authenticated()
 				)
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+				.addFilterAfter(tenantMdcFilter, JwtAuthenticationFilter.class)
 				// After JWT so TenantContext is set; servlet auto-registration remains disabled above.
 				.addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
 

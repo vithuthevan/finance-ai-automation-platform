@@ -83,16 +83,17 @@ export class AuthService {
   }
 
   logout(): void {
-    this.http.post('/api/v1/auth/logout', {}, { withCredentials: true }).subscribe({ error: () => undefined });
-    this.session.set(null);
-    this.platformAdmin.set(false);
-    this.router.navigateByUrl('/login');
+    this.http.post('/api/v1/auth/logout', {}, { withCredentials: true }).subscribe({
+      next: () => this.finishLocalLogout(),
+      error: () => this.finishLocalLogout()
+    });
   }
 
   clearSessionAndRedirect(): void {
-    this.session.set(null);
-    this.platformAdmin.set(false);
-    this.router.navigateByUrl('/login');
+    this.http.post('/api/v1/auth/logout', {}, { withCredentials: true }).subscribe({
+      next: () => this.finishLocalLogout(),
+      error: () => this.finishLocalLogout()
+    });
   }
 
   hasRole(...roles: string[]): boolean {
@@ -140,6 +141,12 @@ export class AuthService {
 
   isPlatformAdmin(): boolean {
     return this.platformAdmin();
+  }
+
+  private finishLocalLogout(): void {
+    this.session.set(null);
+    this.platformAdmin.set(false);
+    this.router.navigateByUrl('/login');
   }
 }
 

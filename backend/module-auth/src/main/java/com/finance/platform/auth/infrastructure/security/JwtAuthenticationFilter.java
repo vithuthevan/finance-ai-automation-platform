@@ -3,6 +3,7 @@ package com.finance.platform.auth.infrastructure.security;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.UserClientAccessJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
+import com.finance.platform.core.observability.SecurityEventLogger;
 import com.finance.platform.core.security.TenantContext;
 import com.finance.platform.core.security.TenantContextHolder;
 import com.finance.platform.core.security.UserRole;
@@ -36,6 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final UserJpaRepository userRepository;
 	private final UserClientAccessJpaRepository clientAccessRepository;
+	private final SecurityEventLogger securityEventLogger;
 
 	@Override
 	protected void doFilterInternal(
@@ -60,7 +62,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 					.filter(user -> user.getFirmId().equals(claims.firmId()))
 					.ifPresent(user -> setAuthenticatedUser(request, user));
 		} catch (RuntimeException ex) {
-			// Invalid or expired token — leave the request unauthenticated.
+			securityEventLogger.jwtRejected(
+					HttpRequestSupport.resolveClientIp(request),
+					ex.getClass().getSimpleName());
 		}
 	}
 

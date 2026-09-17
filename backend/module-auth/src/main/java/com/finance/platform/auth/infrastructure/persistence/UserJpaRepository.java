@@ -23,4 +23,6 @@ public interface UserJpaRepository extends JpaRepository<User, UUID> {
 
 	@Query("SELECT u FROM User u JOIN FETCH u.role WHERE u.id = :id")
 	Optional<User> findDetailedById(@Param("id") UUID id);
+
+	long countByDeletedAtIsNull();
 }

@@ -3,7 +3,7 @@ import { inject } from '@angular/core';
 import { catchError, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 
-const AUTH_PATH = /\/api\/v1\/auth\/(login|register|refresh|logout|forgot-password|reset-password)/;
+const AUTH_PATH = /\/api\/v1\/auth\/(login|register|refresh|logout|forgot-password|reset-password|verify-email)/;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   if (req.url.includes('assets/config.json')) {
