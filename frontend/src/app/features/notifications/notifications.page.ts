@@ -6,14 +6,16 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationItem } from './notification.models';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 
 @Component({
   standalone: true,
-  imports: [MatButtonModule, MatCardModule, MatTabsModule, DatePipe],
+  imports: [MatButtonModule, MatCardModule, MatTabsModule, DatePipe, PageHeaderComponent, EmptyStateComponent],
   template: `
     <div class="page">
+      <app-page-header title="Notifications" subtitle="Alerts and reminders from your firm workspace." />
       <div class="toolbar-row">
-        <h1>Notifications</h1>
         <button mat-stroked-button (click)="markAllRead()">Mark all read</button>
       </div>
       <mat-tab-group (selectedIndexChange)="onTab($event)">
@@ -22,19 +24,44 @@ import { NotificationItem } from './notification.models';
         <mat-tab label="Read"></mat-tab>
       </mat-tab-group>
       @for (item of items; track item.id) {
-        <mat-card class="metric-card" [class.unread]="!item.read" (click)="open(item)">
+        <mat-card
+          class="metric-card notification-card"
+          [class.unread]="!item.read"
+          role="button"
+          tabindex="0"
+          [attr.aria-label]="item.title + ': ' + item.message"
+          (click)="open(item)"
+          (keydown.enter)="onCardActivate($event, item)"
+          (keydown.space)="onCardActivate($event, item)"
+        >
           <div class="label">{{ item.title }} · {{ item.createdAt | date:'short' }}</div>
           <div>{{ item.message }}</div>
         </mat-card>
       }
       @if (items.length === 0) {
-        <p class="hint">No notifications in this view.</p>
+        <app-empty-state title="No notifications" description="You're all caught up in this view." icon="notifications" />
       }
     </div>
   `,
   styles: [`
-    .unread { border-left: 4px solid #3f51b5; cursor: pointer; }
-    mat-card { cursor: pointer; margin-bottom: 8px; }
+    .notification-card {
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .notification-card:hover {
+      background: var(--fp-orange-soft);
+    }
+
+    .notification-card:focus-visible {
+      outline: 2px solid var(--fp-orange);
+      outline-offset: 2px;
+    }
+
+    .notification-card.unread {
+      border-left: 4px solid var(--fp-orange);
+    }
   `]
 })
 export class NotificationsPage implements OnInit {
@@ -66,6 +93,11 @@ export class NotificationsPage implements OnInit {
         this.items = rows;
       }
     });
+  }
+
+  onCardActivate(event: Event, item: NotificationItem): void {
+    event.preventDefault();
+    this.open(item);
   }
 
   open(item: NotificationItem): void {

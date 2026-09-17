@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -61,7 +61,7 @@ import { PlanChangeRequest, SubscriptionSummary, SubscriptionUsage } from './sub
       }
       <h2>Request plan change</h2>
       <p class="hint">Plan upgrades are reviewed manually. No payment is collected through this application.</p>
-      <form [formGroup]="upgradeForm" (ngSubmit)="requestUpgrade()" class="card-block">
+      <form [formGroup]="upgradeForm" (ngSubmit)="requestUpgrade()" class="card-block" novalidate>
         <mat-form-field class="full-width">
           <mat-label>Requested plan</mat-label>
           <mat-select formControlName="requestedPlanCode">
@@ -69,12 +69,19 @@ import { PlanChangeRequest, SubscriptionSummary, SubscriptionUsage } from './sub
             <mat-option value="PRACTICE">Practice</mat-option>
             <mat-option value="PROFESSIONAL">Professional</mat-option>
           </mat-select>
+          @if (upgradeForm.controls.requestedPlanCode.touched && upgradeForm.controls.requestedPlanCode.invalid) {
+            <mat-error>Select a plan</mat-error>
+          }
         </mat-form-field>
         <mat-form-field class="full-width">
           <mat-label>Note (optional)</mat-label>
           <textarea matInput rows="3" formControlName="note"></textarea>
         </mat-form-field>
-        <button mat-flat-button color="primary" type="submit" [disabled]="upgradeForm.invalid">Request upgrade</button>
+        <div class="form-actions">
+          <button mat-flat-button color="primary" type="submit" [disabled]="upgradeForm.invalid || submitting">
+            {{ submitting ? 'Submitting…' : 'Request upgrade' }}
+          </button>
+        </div>
         @if (upgradeMessage) {
           <p class="hint">{{ upgradeMessage }}</p>
         }
@@ -93,8 +100,9 @@ export class SubscriptionPage implements OnInit {
   usage: SubscriptionUsage | null = null;
   summary: SubscriptionSummary | null = null;
   upgradeMessage = '';
+  submitting = false;
   upgradeForm = this.fb.nonNullable.group({
-    requestedPlanCode: ['PRACTICE'],
+    requestedPlanCode: ['PRACTICE', Validators.required],
     note: ['']
   });
 
@@ -104,10 +112,21 @@ export class SubscriptionPage implements OnInit {
   }
 
   requestUpgrade(): void {
+    this.upgradeForm.markAllAsTouched();
+    if (this.upgradeForm.invalid || this.submitting) {
+      return;
+    }
     this.upgradeMessage = '';
+    this.submitting = true;
     this.api.post<PlanChangeRequest>('/api/v1/subscription/upgrade-request', this.upgradeForm.getRawValue()).subscribe({
-      next: () => this.upgradeMessage = 'Upgrade request submitted. A platform administrator will review it.',
-      error: () => this.upgradeMessage = 'Could not submit upgrade request.'
+      next: () => {
+        this.upgradeMessage = 'Upgrade request submitted. A platform administrator will review it.';
+        this.submitting = false;
+      },
+      error: () => {
+        this.upgradeMessage = 'Could not submit upgrade request.';
+        this.submitting = false;
+      }
     });
   }
 

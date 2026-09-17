@@ -7,13 +7,30 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { ApiService } from '../../core/services/api.service';
 import { WorkItem, WorkSummary, ClientPortfolioItem } from './work.models';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { LoadingStateComponent } from '../../shared/ui/loading-state.component';
+import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
+import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
+import { finalize } from 'rxjs';
+
+const WORK_TYPE_LABELS: Record<string, string> = {
+  DOCUMENT_REVIEW: 'Document review',
+  DOCUMENT_PROCESSING_FAILURE: 'Processing failure',
+  TRANSACTION_APPROVAL: 'Approval',
+  DOCUMENT_REQUEST: 'Document request',
+  BANK_RECONCILIATION: 'Bank reconciliation',
+  PERIOD_CLOSE: 'Period close'
+};
 
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatSelectModule],
+  imports: [
+    RouterLink, FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatSelectModule,
+    PageHeaderComponent, LoadingStateComponent, EmptyStateComponent, StatusBadgeComponent
+  ],
   template: `
     <div class="page">
-      <h1>My work</h1>
+      <app-page-header title="My work" subtitle="Prioritized queue across your client portfolio." />
       @if (summary) {
         <div class="grid-2">
           <mat-card class="metric-card link-card"><a routerLink="/app/work" [queryParams]="{type:'DOCUMENT_REVIEW'}"><div class="label">Documents to review</div><div class="value">{{ summary.documentsToReview }}</div></a></mat-card>
@@ -25,20 +42,22 @@ import { WorkItem, WorkSummary, ClientPortfolioItem } from './work.models';
       }
       @if (portfolio.length) {
         <h2>Client portfolio</h2>
-        <table class="data-table">
-          <thead><tr><th>Client</th><th>Accountant</th><th>Review</th><th>Bank</th><th>Close</th></tr></thead>
-          <tbody>
-            @for (row of portfolio; track row.clientId) {
-              <tr>
-                <td>{{ row.clientName }}</td>
-                <td>{{ row.primaryAccountantName || '—' }}</td>
-                <td>{{ row.documentsNeedingReview === 0 ? 'Clear' : row.documentsNeedingReview + ' review' }}</td>
-                <td>{{ row.bankReconciliationPercent == null ? '—' : row.bankReconciliationPercent + '%' }}</td>
-                <td>{{ row.readyToClose ? 'Ready' : row.closeStatus }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Client</th><th>Accountant</th><th>Review</th><th>Bank</th><th>Close</th></tr></thead>
+            <tbody>
+              @for (row of portfolio; track row.clientId) {
+                <tr>
+                  <td>{{ row.clientName }}</td>
+                  <td>{{ row.primaryAccountantName || '—' }}</td>
+                  <td>{{ row.documentsNeedingReview === 0 ? 'Clear' : row.documentsNeedingReview + ' review' }}</td>
+                  <td>{{ row.bankReconciliationPercent == null ? '—' : row.bankReconciliationPercent + '%' }}</td>
+                  <td>{{ row.readyToClose ? 'Ready' : row.closeStatus }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
       <div class="toolbar-row">
         <mat-form-field>
@@ -54,32 +73,47 @@ import { WorkItem, WorkSummary, ClientPortfolioItem } from './work.models';
           </mat-select>
         </mat-form-field>
       </div>
-      <table class="data-table">
-        <thead><tr><th>Priority</th><th>Client</th><th>Type</th><th>Description</th><th>Due</th><th></th></tr></thead>
-        <tbody>
-          @for (item of items; track item.resourceId + item.type) {
-            <tr [class.overdue]="item.overdue">
-              <td>{{ item.priority }}</td>
-              <td>{{ item.clientName }}</td>
-              <td>{{ item.type }}</td>
-              <td>{{ item.title }}</td>
-              <td>{{ item.dueDate || '—' }}</td>
-              <td><a href="#" (click)="$event.preventDefault(); openItem(item)">Open</a></td>
-            </tr>
-          }
-        </tbody>
-      </table>
+      @if (itemsLoading) {
+        <app-loading-state message="Loading work queue…" />
+      } @else if (!items.length) {
+        <app-empty-state
+          title="Queue is clear"
+          description="No items match this filter. Try another work type or check back later."
+          icon="checklist" />
+      } @else {
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>Priority</th><th>Client</th><th>Type</th><th>Description</th><th>Due</th><th></th></tr></thead>
+            <tbody>
+              @for (item of items; track item.resourceId + item.type) {
+                <tr [class.overdue]="item.overdue">
+                  <td>{{ item.priority }}</td>
+                  <td>{{ item.clientName }}</td>
+                  <td><app-status-badge [status]="item.type" [label]="workTypeLabel(item.type)" /></td>
+                  <td class="work-desc">{{ item.title }}</td>
+                  <td>{{ item.dueDate || '—' }}</td>
+                  <td>
+                    <button mat-button type="button" [disabled]="!item.actionUrl" (click)="openItem(item)">Open</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
   `,
   styles: [`
     .link-card a { text-decoration: none; color: inherit; display: block; }
     .overdue { background: #fff4f4; }
+    .work-desc { max-width: 320px; word-break: break-word; }
   `]
 })
 export class WorkPage implements OnInit {
   summary: WorkSummary | null = null;
   portfolio: ClientPortfolioItem[] = [];
   items: WorkItem[] = [];
+  itemsLoading = false;
   type = '';
 
   constructor(private api: ApiService, private router: Router) {}
@@ -95,7 +129,10 @@ export class WorkPage implements OnInit {
     if (this.type) {
       params['type'] = this.type;
     }
-    this.api.get<{ content: WorkItem[] }>('/api/v1/work/my', params).subscribe({
+    this.itemsLoading = true;
+    this.api.get<{ content: WorkItem[] }>('/api/v1/work/my', params).pipe(
+      finalize(() => this.itemsLoading = false)
+    ).subscribe({
       next: (response) => this.items = response.content ?? []
     });
   }
@@ -104,5 +141,9 @@ export class WorkPage implements OnInit {
     if (item.actionUrl) {
       this.router.navigateByUrl(item.actionUrl);
     }
+  }
+
+  workTypeLabel(type: string): string {
+    return WORK_TYPE_LABELS[type] ?? type.replace(/_/g, ' ');
   }
 }

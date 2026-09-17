@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { finalize } from 'rxjs';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
@@ -8,6 +9,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ReportContextService, money } from './report-context.service';
 import { ReportFiltersComponent } from './report-filters.component';
 import { saveBlob } from './report-download';
+import { ToastService } from '../../shared/toast.service';
 import {
   CategoryAmount,
   DocumentSupportSummary,
@@ -16,31 +18,49 @@ import {
   ReportTransaction,
   TransactionStatusSummary
 } from './report.models';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { LoadingStateComponent } from '../../shared/ui/loading-state.component';
+import { ErrorStateComponent } from '../../shared/ui/error-state.component';
+import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 
 @Component({
   standalone: true,
-  imports: [DatePipe, RouterLink, MatTableModule, MatButtonModule, ReportFiltersComponent],
+  imports: [
+    DatePipe, RouterLink, MatTableModule, MatButtonModule, ReportFiltersComponent, PageHeaderComponent,
+    LoadingStateComponent, ErrorStateComponent, EmptyStateComponent
+  ],
   template: `
     <div class="page">
-      <h1>{{ auth.hasRole('BUSINESS_OWNER') ? 'Financial summary' : 'Profit & Loss' }}</h1>
+      <app-page-header
+        [title]="auth.hasRole('BUSINESS_OWNER') ? 'Financial summary' : 'Profit & Loss'"
+        [subtitle]="auth.hasRole('BUSINESS_OWNER') ? 'View approved income, expenses, and net result for your business.' : 'Review income, expenses, and net profit for the selected client and period.'" />
       <app-report-filters
         [showCompare]="!auth.hasRole('BUSINESS_OWNER')"
         [exporting]="exporting"
+        [loading]="loading || ctx.clientsLoading()"
         [message]="message"
         (run)="load()"
         (export)="exportFile($event)">
       </app-report-filters>
 
-      @if (summary && !summary.hasApprovedData) {
-        <p class="empty-report">No approved transactions for this period. Draft and void records are excluded from official totals.</p>
+      @if (loading && !summary) {
+        <app-loading-state message="Building profit &amp; loss…" />
+      } @else if (message && !summary) {
+        <app-error-state title="Report unavailable" [message]="message" (retry)="load()" />
+      } @else if (summary && !summary.hasApprovedData) {
+        <app-empty-state
+          title="No approved activity in this period"
+          description="Draft and void records are excluded from official totals. Run again after approvals."
+          icon="insights" />
       } @else if (summary) {
-        <section class="pnl">
+        <section class="pnl" aria-label="Profit and loss statement">
           <header>
+            <p class="pnl-statement-title">Profit &amp; Loss</p>
             <h2>{{ summary.clientName }}</h2>
-            <p>{{ summary.from | date:'mediumDate' }} – {{ summary.to | date:'mediumDate' }} · {{ summary.currencyCode }} · {{ summary.resultType }}</p>
+            <p class="pnl-period">{{ summary.from | date:'mediumDate' }} – {{ summary.to | date:'mediumDate' }} · {{ summary.currencyCode }}</p>
           </header>
 
-          <h3>Income</h3>
+          <h3 class="pnl-section-title">Income</h3>
           <table class="pnl-table">
             @for (row of summary.incomeByCategory; track row.categoryId) {
               <tr class="clickable" (click)="drill('income', row)">
@@ -52,7 +72,7 @@ import {
             <tr class="total"><td>Total Income</td><td class="num">{{ format(summary.totalIncome) }}</td><td></td></tr>
           </table>
 
-          <h3>Expenses</h3>
+          <h3 class="pnl-section-title">Expenses</h3>
           <table class="pnl-table">
             @for (row of summary.expensesByCategory; track row.categoryId) {
               <tr class="clickable" (click)="drill('expenses', row)">
@@ -74,61 +94,71 @@ import {
         </section>
 
         @if (comparison && !auth.hasRole('BUSINESS_OWNER')) {
-          <h2>Period comparison</h2>
-          <p class="hint">{{ comparison.currentPeriod.from }} – {{ comparison.currentPeriod.to }} vs {{ comparison.previousPeriod.from }} – {{ comparison.previousPeriod.to }}</p>
-          <table class="pnl-table">
-            <tr>
-              <th></th>
-              <th class="num">Current</th>
-              <th class="num">Comparison</th>
-              <th class="num">Change</th>
-              <th class="num">Change %</th>
-            </tr>
-            <tr>
-              <td>Income</td>
-              <td class="num">{{ format(comparison.currentPeriod.totalIncome) }}</td>
-              <td class="num">{{ format(comparison.previousPeriod.totalIncome) }}</td>
-              <td class="num" [class]="deltaClass(comparison.incomeDifference, 'income')">{{ format(comparison.incomeDifference) }}</td>
-              <td class="num" [class]="deltaClass(comparison.incomeDifference, 'income')">{{ percent(comparison.incomeChangePercent) }}</td>
-            </tr>
-            <tr>
-              <td>Expenses</td>
-              <td class="num">{{ format(comparison.currentPeriod.totalExpenses) }}</td>
-              <td class="num">{{ format(comparison.previousPeriod.totalExpenses) }}</td>
-              <td class="num" [class]="deltaClass(comparison.expenseDifference, 'expense')">{{ format(comparison.expenseDifference) }}</td>
-              <td class="num" [class]="deltaClass(comparison.expenseDifference, 'expense')">{{ percent(comparison.expenseChangePercent) }}</td>
-            </tr>
-            <tr class="total">
-              <td>Profit / Loss</td>
-              <td class="num">{{ format(comparison.currentPeriod.netResult) }}</td>
-              <td class="num">{{ format(comparison.previousPeriod.netResult) }}</td>
-              <td class="num" [class]="deltaClass(comparison.netDifference, 'income')">{{ format(comparison.netDifference) }}</td>
-              <td class="num" [class]="deltaClass(comparison.netDifference, 'income')">{{ percent(comparison.netChangePercent) }}</td>
-            </tr>
-          </table>
+          <section class="card-block">
+            <h2>Period comparison</h2>
+            <p class="hint">{{ comparison.currentPeriod.from }} – {{ comparison.currentPeriod.to }} vs {{ comparison.previousPeriod.from }} – {{ comparison.previousPeriod.to }}</p>
+            <table class="pnl-table">
+              <tr>
+                <th></th>
+                <th class="num">Current</th>
+                <th class="num">Comparison</th>
+                <th class="num">Change</th>
+                <th class="num">Change %</th>
+              </tr>
+              <tr>
+                <td>Income</td>
+                <td class="num">{{ format(comparison.currentPeriod.totalIncome) }}</td>
+                <td class="num">{{ format(comparison.previousPeriod.totalIncome) }}</td>
+                <td class="num" [class]="deltaClass(comparison.incomeDifference, 'income')">{{ format(comparison.incomeDifference) }}</td>
+                <td class="num" [class]="deltaClass(comparison.incomeDifference, 'income')">{{ percent(comparison.incomeChangePercent) }}</td>
+              </tr>
+              <tr>
+                <td>Expenses</td>
+                <td class="num">{{ format(comparison.currentPeriod.totalExpenses) }}</td>
+                <td class="num">{{ format(comparison.previousPeriod.totalExpenses) }}</td>
+                <td class="num" [class]="deltaClass(comparison.expenseDifference, 'expense')">{{ format(comparison.expenseDifference) }}</td>
+                <td class="num" [class]="deltaClass(comparison.expenseDifference, 'expense')">{{ percent(comparison.expenseChangePercent) }}</td>
+              </tr>
+              <tr class="total">
+                <td>Profit / Loss</td>
+                <td class="num">{{ format(comparison.currentPeriod.netResult) }}</td>
+                <td class="num">{{ format(comparison.previousPeriod.netResult) }}</td>
+                <td class="num" [class]="deltaClass(comparison.netDifference, 'income')">{{ format(comparison.netDifference) }}</td>
+                <td class="num" [class]="deltaClass(comparison.netDifference, 'income')">{{ percent(comparison.netChangePercent) }}</td>
+              </tr>
+            </table>
+          </section>
         }
 
-        @if (statuses && !auth.hasRole('BUSINESS_OWNER')) {
-          <h2>Transaction status</h2>
-          <p class="hint">Draft {{ statuses.draftIncome + statuses.draftExpenses }} · Approved {{ statuses.approvedIncome + statuses.approvedExpenses }} · Void {{ statuses.voidIncome + statuses.voidExpenses }}</p>
-        }
-        @if (documents && !auth.hasRole('BUSINESS_OWNER')) {
-          <h2>Document support</h2>
-          <p class="hint">Approved with documents {{ documents.approvedWithDocuments }} · Without documents {{ documents.approvedWithoutDocuments }} · Unlinked {{ documents.unlinkedDocuments }} · Awaiting review {{ documents.documentsAwaitingReview }}</p>
+        @if ((statuses || documents) && !auth.hasRole('BUSINESS_OWNER')) {
+          <section class="card-block">
+            @if (statuses) {
+              <h2>Transaction status</h2>
+              <p class="hint">Draft {{ statuses.draftIncome + statuses.draftExpenses }} · Approved {{ statuses.approvedIncome + statuses.approvedExpenses }} · Void {{ statuses.voidIncome + statuses.voidExpenses }}</p>
+            }
+            @if (documents) {
+              <h2>Document support</h2>
+              <p class="hint">Approved with documents {{ documents.approvedWithDocuments }} · Without documents {{ documents.approvedWithoutDocuments }} · Unlinked {{ documents.unlinkedDocuments }} · Awaiting review {{ documents.documentsAwaitingReview }}</p>
+            }
+          </section>
         }
 
         @if (drillRows.length && !auth.hasRole('BUSINESS_OWNER')) {
-          <h2>Approved {{ drillType }} — {{ drillCategory }}</h2>
-          <p>
-            <a [routerLink]="drillType === 'income' ? '/app/income' : '/app/expenses'" [queryParams]="drillQuery">Open in ledger</a>
-          </p>
-          <table mat-table [dataSource]="drillRows" class="full-width">
-            <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Date</th><td mat-cell *matCellDef="let row">{{ row.transactionDate }}</td></ng-container>
-            <ng-container matColumnDef="party"><th mat-header-cell *matHeaderCellDef>Party</th><td mat-cell *matCellDef="let row">{{ row.vendorName || row.customerName }}</td></ng-container>
-            <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef>Amount</th><td mat-cell *matCellDef="let row">{{ format(row.amount) }}</td></ng-container>
-            <tr mat-header-row *matHeaderRowDef="drillColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: drillColumns"></tr>
-          </table>
+          <section class="card-block">
+            <h2>Approved {{ drillType }} — {{ drillCategory }}</h2>
+            <p>
+              <a [routerLink]="drillType === 'income' ? '/app/income' : '/app/expenses'" [queryParams]="drillQuery">Open in ledger</a>
+            </p>
+            <div class="table-scroll">
+              <table mat-table [dataSource]="drillRows" class="pnl-mat-table full-width">
+                <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Date</th><td mat-cell *matCellDef="let row">{{ row.transactionDate }}</td></ng-container>
+                <ng-container matColumnDef="party"><th mat-header-cell *matHeaderCellDef>Party</th><td mat-cell *matCellDef="let row">{{ row.vendorName || row.customerName }}</td></ng-container>
+                <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef>Amount</th><td mat-cell *matCellDef="let row">{{ format(row.amount) }}</td></ng-container>
+                <tr mat-header-row *matHeaderRowDef="drillColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: drillColumns"></tr>
+              </table>
+            </div>
+          </section>
         }
       }
     </div>
@@ -140,6 +170,7 @@ export class ReportsPage implements OnInit {
   statuses: TransactionStatusSummary | null = null;
   documents: DocumentSupportSummary | null = null;
   message = '';
+  loading = false;
   exporting = false;
   drillRows: ReportTransaction[] = [];
   drillType = '';
@@ -150,7 +181,8 @@ export class ReportsPage implements OnInit {
   constructor(
     private api: ApiService,
     readonly auth: AuthService,
-    readonly ctx: ReportContextService
+    readonly ctx: ReportContextService,
+    private toast: ToastService
   ) {}
 
   ngOnInit(): void {
@@ -158,12 +190,15 @@ export class ReportsPage implements OnInit {
   }
 
   load(): void {
-    if (!this.ctx.clientId()) {
+    if (!this.ctx.clientId() || this.ctx.clientsError()) {
       return;
     }
     this.message = '';
     this.drillRows = [];
-    this.api.get<PlSummary>(`/api/v1/clients/${this.ctx.clientId()}/reports/profit-and-loss`, this.ctx.params()).subscribe({
+    this.loading = true;
+    this.api.get<PlSummary>(`/api/v1/clients/${this.ctx.clientId()}/reports/profit-and-loss`, this.ctx.params()).pipe(
+      finalize(() => this.loading = false)
+    ).subscribe({
       next: (summary) => {
         this.summary = summary;
         this.loadComparison();
@@ -187,7 +222,7 @@ export class ReportsPage implements OnInit {
         this.exporting = false;
       },
       error: () => {
-        this.message = 'Export failed';
+        this.toast.error('Export failed');
         this.exporting = false;
       }
     });

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -6,37 +6,35 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { BaseChartDirective } from 'ng2-charts';
+import { ChartConfiguration, ChartData } from 'chart.js';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { money, monthStart, today } from '../reports/report-context.service';
 import { DashboardSummary, PracticeDashboard } from '../reports/report.models';
 import { WorkSummary } from '../work/work.models';
 import { SubscriptionUsage } from '../admin/subscription.models';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, MatCardModule, MatFormFieldModule, MatSelectModule, MatIconModule, MatButtonModule, RouterLink],
+  imports: [
+    FormsModule, MatCardModule, MatFormFieldModule, MatSelectModule, MatIconModule,
+    MatButtonModule, RouterLink, BaseChartDirective, PageHeaderComponent
+  ],
   template: `
     <div class="page dash">
-      <div class="dash-head">
-        <div>
-          <h1>{{ auth.hasRole('ADMIN', 'ACCOUNTANT') ? 'Dashboard' : 'Client dashboard' }}</h1>
-          <p class="page-subtitle">Welcome back — here’s a snapshot of your practice today.</p>
+      <app-page-header
+        [title]="auth.hasRole('ADMIN', 'ACCOUNTANT') ? 'Dashboard' : 'Client dashboard'"
+        subtitle="Welcome back — here’s a snapshot of your practice today.">
+        <div fpPageActions class="toolbar-row dash-actions">
+        @if (auth.hasRole('ADMIN', 'ACCOUNTANT')) {
+          <a mat-stroked-button color="primary" routerLink="/app/work">Open work queue</a>
+          <a mat-stroked-button routerLink="/app/reports">Report summary</a>
+        }
+        <div class="date-chip">{{ todayLabel }}</div>
         </div>
-        <div class="dash-actions">
-          @if (auth.hasRole('ADMIN', 'ACCOUNTANT')) {
-            <a mat-stroked-button color="primary" routerLink="/app/work">Open work queue</a>
-            <a mat-stroked-button routerLink="/app/reports">Report summary</a>
-          }
-          <div class="date-chip">{{ todayLabel }}</div>
-        </div>
-      </div>
-
-      @if (auth.hasRole('ADMIN') && usageWarnings.length) {
-        <div class="subscription-banner warning cardish">
-          Plan usage: {{ usageWarnings.join(' · ') }} — <a routerLink="/app/subscription">View subscription</a>
-        </div>
-      }
+      </app-page-header>
 
       @if (auth.hasRole('ADMIN', 'ACCOUNTANT') && workSummary) {
         <div class="hero-grid">
@@ -56,8 +54,8 @@ import { SubscriptionUsage } from '../admin/subscription.models';
           </mat-card>
         </div>
 
-        <div class="panel">
-          <div class="panel-head">
+        <div class="card-block">
+          <div class="toolbar-row">
             <div>
               <h2>Today’s workflow</h2>
               <p class="hint">Every card links to the relevant queue.</p>
@@ -83,12 +81,29 @@ import { SubscriptionUsage } from '../admin/subscription.models';
               </a>
             </mat-card>
           </div>
+          <div class="chart-panel chart-wrap">
+            <canvas baseChart [data]="workChartData" [options]="barOptions" [type]="'bar'"></canvas>
+          </div>
+        </div>
+      }
+
+      @if (auth.hasRole('ADMIN') && usage) {
+        <div class="card-block">
+          <div class="toolbar-row">
+            <div>
+              <h2>Plan usage</h2>
+              <p class="hint">Percent of subscription limits used this period.</p>
+            </div>
+          </div>
+          <div class="chart-panel chart-wrap">
+            <canvas baseChart [data]="usageChartData" [options]="barOptions" [type]="'bar'"></canvas>
+          </div>
         </div>
       }
 
       @if (auth.hasRole('ADMIN', 'ACCOUNTANT') && practice) {
-        <div class="panel">
-          <div class="panel-head">
+        <div class="card-block">
+          <div class="toolbar-row">
             <div>
               <h2>Practice overview</h2>
               <p class="hint">Firm-wide pipeline health.</p>
@@ -103,8 +118,8 @@ import { SubscriptionUsage } from '../admin/subscription.models';
         </div>
       }
 
-      <div class="panel">
-        <div class="panel-head">
+      <div class="card-block">
+        <div class="toolbar-row">
           <div>
             <h2>Selected client this month</h2>
             <p class="hint">Approved activity for the chosen client.</p>
@@ -131,25 +146,23 @@ import { SubscriptionUsage } from '../admin/subscription.models';
             <mat-card class="metric-card"><div class="label">Unlinked documents</div><div class="value">{{ clientDash.unlinkedDocuments }}</div></mat-card>
             <mat-card class="metric-card"><div class="label">Documents needing review</div><div class="value">{{ clientDash.unreviewedDocuments }}</div></mat-card>
           </div>
+          @if (statusChartData.datasets[0]?.data?.length) {
+            <div class="chart-panel chart-wrap">
+              <canvas baseChart [data]="statusChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
+            </div>
+          }
         }
       </div>
     </div>
   `,
   styles: [`
-    .dash-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: flex-start;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
+    .dash-actions {
+      align-items: center;
+      margin-top: -10px;
     }
 
-    .dash-actions {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
+    .dash-actions .date-chip {
+      margin-left: auto;
     }
 
     .date-chip {
@@ -200,32 +213,6 @@ import { SubscriptionUsage } from '../admin/subscription.models';
       text-decoration: none;
     }
 
-    .panel {
-      background: #fff;
-      border: 1px solid var(--fp-line);
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 16px;
-      box-shadow: var(--fp-shadow);
-    }
-
-    .panel-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      margin-bottom: 8px;
-    }
-
-    .panel h2 {
-      margin: 0 0 4px;
-    }
-
-    .panel .hint {
-      margin: 0 0 12px;
-    }
-
     .client-select {
       width: min(280px, 100%);
     }
@@ -236,40 +223,100 @@ import { SubscriptionUsage } from '../admin/subscription.models';
       display: block;
     }
 
-    .cardish {
-      border-radius: 12px;
-      margin-bottom: 14px;
-      border: 1px solid #ffd7b0;
+    .chart-wrap {
+      height: 260px;
+      margin-top: 12px;
     }
 
     @media (max-width: 800px) {
       .hero-grid { grid-template-columns: 1fr; }
     }
+
+    @media (max-width: 640px) {
+      .dash-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .dash-actions .date-chip {
+        margin-left: 0;
+        text-align: center;
+      }
+
+      .dash-actions > a.mat-mdc-button-base {
+        width: 100%;
+        justify-content: center;
+      }
+    }
   `]
 })
 export class DashboardPage implements OnInit {
+  @ViewChild(BaseChartDirective) chart?: BaseChartDirective;
+
   practice: PracticeDashboard | null = null;
   workSummary: WorkSummary | null = null;
   clients: { id: string; name: string }[] = [];
   clientId = '';
   clientDash: DashboardSummary | null = null;
-  usageWarnings: string[] = [];
+  usage: SubscriptionUsage | null = null;
   todayLabel = new Date().toLocaleDateString();
+
+  workChartData: ChartData<'bar'> = { labels: [], datasets: [] };
+  usageChartData: ChartData<'bar'> = { labels: [], datasets: [] };
+  statusChartData: ChartData<'doughnut'> = { labels: [], datasets: [] };
+
+  barOptions: ChartConfiguration<'bar'>['options'] = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true, grid: { color: '#e8ecf1' } },
+      y: { grid: { display: false } }
+    }
+  };
+
+  doughnutOptions: ChartConfiguration<'doughnut'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } }
+  };
 
   constructor(private api: ApiService, readonly auth: AuthService) {}
 
   ngOnInit(): void {
     if (this.auth.hasRole('ADMIN')) {
       this.api.get<SubscriptionUsage>('/api/v1/subscription/usage').subscribe((usage) => {
-        this.usageWarnings = [];
-        if (usage.documents.percentUsed >= 80) this.usageWarnings.push(`Documents ${usage.documents.percentUsed}%`);
-        if (usage.aiProcessing.percentUsed >= 80) this.usageWarnings.push(`AI ${usage.aiProcessing.percentUsed}%`);
-        if (usage.storageBytes.percentUsed >= 80) this.usageWarnings.push(`Storage ${usage.storageBytes.percentUsed}%`);
+        this.usage = usage;
+        this.usageChartData = {
+          labels: ['Documents', 'AI processing', 'Storage'],
+          datasets: [{
+            data: [usage.documents.percentUsed, usage.aiProcessing.percentUsed, usage.storageBytes.percentUsed],
+            backgroundColor: ['#e87722', '#5c6472', '#0f766e'],
+            borderRadius: 4
+          }]
+        };
       });
     }
     if (this.auth.hasRole('ADMIN', 'ACCOUNTANT')) {
       this.api.get<PracticeDashboard>('/api/v1/reports/practice').subscribe((practice) => this.practice = practice);
-      this.api.get<WorkSummary>('/api/v1/work/summary').subscribe((summary) => this.workSummary = summary);
+      this.api.get<WorkSummary>('/api/v1/work/summary').subscribe((summary) => {
+        this.workSummary = summary;
+        this.workChartData = {
+          labels: ['Docs to review', 'Approvals', 'Bank unresolved', 'Overdue requests', 'Ready to close'],
+          datasets: [{
+            data: [
+              summary.documentsToReview,
+              summary.pendingApprovals,
+              summary.bankItemsUnresolved,
+              summary.overdueDocumentRequests,
+              summary.clientsReadyToClose
+            ],
+            backgroundColor: '#e87722',
+            borderRadius: 4
+          }]
+        };
+      });
     }
     this.api.list<{ id: string; name: string }>('/api/v1/clients').subscribe((clients) => {
       this.clients = clients;
@@ -286,7 +333,24 @@ export class DashboardPage implements OnInit {
       from: monthStart(),
       to: today()
     }).subscribe({
-      next: (dashboard) => this.clientDash = dashboard,
+      next: (dashboard) => {
+        this.clientDash = dashboard;
+        const s = dashboard.statusSummary;
+        if (!s) {
+          this.statusChartData = { labels: [], datasets: [] };
+          return;
+        }
+        this.statusChartData = {
+          labels: ['Draft exp', 'Approved exp', 'Void exp', 'Draft inc', 'Approved inc', 'Void inc'],
+          datasets: [{
+            data: [
+              s.draftExpenses, s.approvedExpenses, s.voidExpenses,
+              s.draftIncome, s.approvedIncome, s.voidIncome
+            ],
+            backgroundColor: ['#f59e0b', '#047857', '#9b1c1c', '#fb923c', '#0f766e', '#b91c1c']
+          }]
+        };
+      },
       error: () => this.clientDash = null
     });
   }

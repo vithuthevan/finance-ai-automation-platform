@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, OnInit, inject } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -7,24 +7,33 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ReportContextService, money } from '../reports/report-context.service';
 import { saveBlob } from '../reports/report-download';
 import { AccountingPeriod, CloseFinding, DocumentRequestRow, PeriodReadiness } from './close.models';
+import { formatIsoDate, parseIsoDate } from '../../shared/date.util';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, DatePipe, MatCardModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [
+    ReactiveFormsModule, RouterLink, DatePipe, MatCardModule, MatButtonModule, MatFormFieldModule,
+    MatInputModule, MatSelectModule, MatDatepickerModule, PageHeaderComponent, StatusBadgeComponent
+  ],
   template: `
     <div class="page">
-      <p><a routerLink="/app/close">← Month-end close</a></p>
       @if (period) {
-        <h1>{{ period.clientName }}</h1>
-        <p class="hint">{{ monthTitle }} · {{ period.startDate }} – {{ period.endDate }}</p>
+        <app-page-header
+          [title]="period.clientName"
+          [subtitle]="monthTitle + ' · ' + period.startDate + ' – ' + period.endDate"
+          backLink="/app/close"
+          backLabel="← Month-end close" />
         <div class="toolbar-row">
-          <span class="status-pill" [class]="'status-' + period.status">{{ statusLabel(period.status) }}</span>
-          <span class="value">Readiness {{ period.readinessPercent }}%</span>
+          <app-status-badge [status]="period.status" [label]="statusLabel(period.status)" />
+          <span class="value fp-num">Readiness {{ period.readinessPercent }}%</span>
           @if (period.status === 'CLOSED') {
             <span class="hint">Closed period · Finalized bookkeeping period (not an audited statement)</span>
           }
@@ -42,25 +51,29 @@ import { AccountingPeriod, CloseFinding, DocumentRequestRow, PeriodReadiness } f
 
       @if (readiness) {
         <section class="card-block">
-          <h2>Blockers</h2>
-          <p class="hint">The period cannot close until these are resolved.</p>
-          @for (item of readiness.checklist; track item.code) {
-            @if (item.severity !== 'DISABLED') {
-              <p>
-                <span>{{ item.passed ? '✓' : '✗' }}</span>
-                {{ item.label }}
-                @if (!item.passed && item.count) { · {{ item.count }} }
-              </p>
+          <h2>Readiness checks</h2>
+          <p class="hint">The period cannot close until blockers are resolved.</p>
+          <ul class="readiness-list">
+            @for (item of readiness.checklist; track item.code) {
+              @if (item.severity !== 'DISABLED') {
+                <li class="readiness-item" [class]="item.passed ? 'readiness-item--pass' : 'readiness-item--fail'">
+                  <span aria-hidden="true">{{ item.passed ? '✓' : '✗' }}</span>
+                  <span>{{ item.label }}@if (!item.passed && item.count) { · {{ item.count }} }</span>
+                </li>
+              }
             }
-          }
+          </ul>
           @if (readiness.blockers.length === 0) {
-            <p>No blockers. This period can be closed if you have reviewed the books.</p>
+            <p class="hint">No blockers. You may close after final review.</p>
           } @else {
-            @for (row of readiness.blockers; track row.code) {
-              <p>
-                <a [routerLink]="blockerLink(row)" [queryParams]="blockerQuery(row)">{{ row.message }}</a>
-              </p>
-            }
+            <h3>Blocking issues</h3>
+            <ul class="readiness-list">
+              @for (row of readiness.blockers; track row.code) {
+                <li class="readiness-item readiness-item--fail">
+                  <a [routerLink]="blockerLink(row)" [queryParams]="blockerQuery(row)">{{ row.message }}</a>
+                </li>
+              }
+            </ul>
           }
         </section>
 
@@ -69,9 +82,11 @@ import { AccountingPeriod, CloseFinding, DocumentRequestRow, PeriodReadiness } f
           @if (readiness.warnings.length === 0) {
             <p class="hint">No warnings.</p>
           } @else {
-            @for (row of readiness.warnings; track row.code) {
-              <p>⚠ {{ row.message }}</p>
-            }
+            <ul class="readiness-list">
+              @for (row of readiness.warnings; track row.code) {
+                <li class="readiness-item readiness-item--warn">{{ row.message }}</li>
+              }
+            </ul>
           }
         </section>
 
@@ -105,49 +120,88 @@ import { AccountingPeriod, CloseFinding, DocumentRequestRow, PeriodReadiness } f
         @if (canOperate && period && period.status !== 'CLOSED' && period.status !== 'IN_REVIEW') {
           <button mat-stroked-button (click)="startReview()">Start review</button>
         }
-        @if (canOperate && period && period.status !== 'CLOSED') {
-          <mat-form-field><mat-label>Close note (optional)</mat-label><input matInput [(ngModel)]="closeNote"></mat-form-field>
-          <button mat-flat-button color="primary" (click)="closePeriod()" [disabled]="!!readiness && !readiness.ready">
-            Close period
-          </button>
-        }
         @if (auth.hasRole('ADMIN') && period?.status === 'CLOSED') {
           <button mat-stroked-button color="warn" (click)="showReopen = true">Reopen period</button>
         }
       </div>
-      @if (readiness && !readiness.ready && period?.status !== 'CLOSED') {
-        <p class="hint">Close is disabled until blockers are resolved. The server re-checks readiness independently.</p>
+
+      @if (canOperate && period && period.status !== 'CLOSED') {
+        <section class="card-block">
+          <h2>Close period</h2>
+          @if (readiness && !readiness.ready) {
+            <p class="hint">Close is disabled until blockers are resolved. The server re-checks readiness independently.</p>
+          }
+          <form [formGroup]="closeForm" (ngSubmit)="closePeriod()" novalidate>
+            <div class="form-grid">
+              <mat-form-field class="span-2">
+                <mat-label>Close note (optional)</mat-label>
+                <input matInput formControlName="closeNote">
+              </mat-form-field>
+            </div>
+            <div class="form-actions">
+              <button mat-flat-button color="primary" type="submit" [disabled]="!!readiness && !readiness.ready">
+                Close period
+              </button>
+            </div>
+          </form>
+        </section>
       }
 
       @if (showReopen) {
         <section class="card-block">
           <h2>Reopen period</h2>
           <p>Reopening allows financial changes to a previously closed period and will be recorded in the audit trail.</p>
-          <mat-form-field class="full-width"><mat-label>Reason (required)</mat-label>
-            <textarea matInput rows="3" [(ngModel)]="reopenReason"></textarea>
-          </mat-form-field>
-          <button mat-flat-button color="warn" (click)="reopen()">Confirm reopen</button>
-          <button mat-button (click)="showReopen = false">Cancel</button>
+          <form [formGroup]="reopenForm" (ngSubmit)="reopen()" novalidate>
+            <div class="form-grid">
+              <mat-form-field class="span-2">
+                <mat-label>Reason (required)</mat-label>
+                <textarea matInput rows="3" formControlName="reason"></textarea>
+                @if (reopenForm.controls.reason.touched && reopenForm.controls.reason.hasError('required')) {
+                  <mat-error>A reopen reason is required</mat-error>
+                }
+              </mat-form-field>
+            </div>
+            <div class="form-actions">
+              <button mat-flat-button color="warn" type="submit" [disabled]="reopenForm.invalid">Confirm reopen</button>
+              <button mat-button type="button" (click)="cancelReopen()">Cancel</button>
+            </div>
+          </form>
         </section>
       }
 
       @if (canOperate && period?.status !== 'CLOSED') {
         <section class="card-block" id="requests">
           <h2>Request missing document</h2>
-          <div class="toolbar-row">
-            <mat-form-field><mat-label>What you need</mat-label><input matInput [(ngModel)]="requestDescription"></mat-form-field>
-            <mat-form-field><mat-label>Type</mat-label>
-              <mat-select [(ngModel)]="requestType">
-                <mat-option value="RECEIPT">Receipt</mat-option>
-                <mat-option value="PURCHASE_INVOICE">Purchase invoice</mat-option>
-                <mat-option value="SALES_INVOICE">Sales invoice</mat-option>
-                <mat-option value="BANK_STATEMENT">Bank statement</mat-option>
-                <mat-option value="OTHER">Other</mat-option>
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field><mat-label>Due</mat-label><input matInput type="date" [(ngModel)]="requestDue"></mat-form-field>
-            <button mat-stroked-button (click)="createRequest()">Request</button>
-          </div>
+          <form [formGroup]="requestForm" (ngSubmit)="createRequest()" novalidate>
+            <div class="form-grid">
+              <mat-form-field class="span-2">
+                <mat-label>What you need</mat-label>
+                <input matInput formControlName="description">
+                @if (requestForm.controls.description.touched && requestForm.controls.description.hasError('required')) {
+                  <mat-error>Describe the document you need</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Type</mat-label>
+                <mat-select formControlName="documentType">
+                  <mat-option value="RECEIPT">Receipt</mat-option>
+                  <mat-option value="PURCHASE_INVOICE">Purchase invoice</mat-option>
+                  <mat-option value="SALES_INVOICE">Sales invoice</mat-option>
+                  <mat-option value="BANK_STATEMENT">Bank statement</mat-option>
+                  <mat-option value="OTHER">Other</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Due</mat-label>
+                <input matInput [matDatepicker]="duePicker" formControlName="dueDate">
+                <mat-datepicker-toggle matIconSuffix [for]="duePicker"></mat-datepicker-toggle>
+                <mat-datepicker #duePicker></mat-datepicker>
+              </mat-form-field>
+            </div>
+            <div class="form-actions">
+              <button mat-stroked-button type="submit" [disabled]="requestForm.invalid">Request</button>
+            </div>
+          </form>
         </section>
       }
 
@@ -171,6 +225,8 @@ import { AccountingPeriod, CloseFinding, DocumentRequestRow, PeriodReadiness } f
   `
 })
 export class PeriodDetailPage implements OnInit {
+  private readonly fb = inject(FormBuilder);
+
   clientId = '';
   periodId = '';
   period: AccountingPeriod | null = null;
@@ -179,11 +235,20 @@ export class PeriodDetailPage implements OnInit {
   message = '';
   exporting = false;
   showReopen = false;
-  reopenReason = '';
-  requestDescription = '';
-  requestType = 'RECEIPT';
-  requestDue = '';
-  closeNote = '';
+
+  closeForm = this.fb.nonNullable.group({
+    closeNote: ['']
+  });
+
+  reopenForm = this.fb.nonNullable.group({
+    reason: ['', Validators.required]
+  });
+
+  requestForm = this.fb.nonNullable.group({
+    description: ['', Validators.required],
+    documentType: ['RECEIPT' as const],
+    dueDate: [null as Date | null]
+  });
 
   constructor(
     private api: ApiService,
@@ -318,8 +383,12 @@ export class PeriodDetailPage implements OnInit {
   }
 
   closePeriod(): void {
-    this.api.post(`/api/v1/clients/${this.clientId}/periods/${this.periodId}/close`, { closeNote: this.closeNote || undefined }).subscribe({
-      next: () => this.reload(),
+    const closeNote = this.closeForm.controls.closeNote.value.trim();
+    this.api.post(`/api/v1/clients/${this.clientId}/periods/${this.periodId}/close`, { closeNote: closeNote || undefined }).subscribe({
+      next: () => {
+        this.closeForm.reset();
+        this.reload();
+      },
       error: (err) => {
         const blockers = err.error?.blockers as CloseFinding[] | undefined;
         this.message = blockers?.length
@@ -330,15 +399,26 @@ export class PeriodDetailPage implements OnInit {
     });
   }
 
+  cancelReopen(): void {
+    this.showReopen = false;
+    this.reopenForm.reset();
+  }
+
   reopen(): void {
-    if (!this.reopenReason.trim()) {
-      this.message = 'A reopen reason is required.';
+    if (this.reopenForm.invalid) {
+      this.reopenForm.markAllAsTouched();
       return;
     }
-    this.api.post(`/api/v1/clients/${this.clientId}/periods/${this.periodId}/reopen`, { reason: this.reopenReason.trim() }).subscribe({
+    const reason = this.reopenForm.controls.reason.value.trim();
+    if (!reason) {
+      this.reopenForm.controls.reason.setErrors({ required: true });
+      this.reopenForm.controls.reason.markAsTouched();
+      return;
+    }
+    this.api.post(`/api/v1/clients/${this.clientId}/periods/${this.periodId}/reopen`, { reason }).subscribe({
       next: () => {
         this.showReopen = false;
-        this.reopenReason = '';
+        this.reopenForm.reset();
         this.reload();
       },
       error: (err) => this.message = err.error?.detail || 'Unable to reopen'
@@ -346,17 +426,25 @@ export class PeriodDetailPage implements OnInit {
   }
 
   createRequest(): void {
-    if (!this.requestDescription.trim()) {
+    if (this.requestForm.invalid) {
+      this.requestForm.markAllAsTouched();
+      return;
+    }
+    const { description, documentType, dueDate } = this.requestForm.getRawValue();
+    const trimmed = description.trim();
+    if (!trimmed) {
+      this.requestForm.controls.description.setErrors({ required: true });
+      this.requestForm.controls.description.markAsTouched();
       return;
     }
     this.api.post(`/api/v1/clients/${this.clientId}/document-requests`, {
-      description: this.requestDescription.trim(),
-      documentType: this.requestType,
-      dueDate: this.requestDue || undefined,
+      description: trimmed,
+      documentType,
+      dueDate: dueDate ? formatIsoDate(dueDate) : undefined,
       periodId: this.periodId
     }).subscribe({
       next: () => {
-        this.requestDescription = '';
+        this.requestForm.reset({ documentType: 'RECEIPT', dueDate: null });
         this.reload();
       },
       error: (err) => this.message = err.error?.detail || 'Unable to create request'

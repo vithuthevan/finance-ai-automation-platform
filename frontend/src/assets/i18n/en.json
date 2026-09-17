@@ -1,11 +1,25 @@
 {
   "appName": "Finance Platform",
   "nav.dashboard": "Dashboard",
+  "nav.work": "My work",
   "nav.clients": "Clients",
   "nav.documents": "Documents",
-  "nav.transactions": "Transactions",
+  "nav.myDocuments": "My documents",
+  "nav.expenses": "Expenses",
+  "nav.income": "Income",
   "nav.banking": "Banking",
   "nav.close": "Close",
   "nav.reports": "Reports",
-  "nav.admin": "Administration"
+  "nav.summary": "Summary",
+  "nav.home": "Home",
+  "nav.requestedDocuments": "Requested documents",
+  "nav.users": "Users",
+  "nav.categories": "Categories",
+  "nav.firm": "Firm settings",
+  "nav.subscription": "Subscription",
+  "nav.audit": "Audit log",
+  "nav.platform": "Platform admin",
+  "nav.firms": "Firms",
+  "nav.admin": "Administration",
+  "nav.transactions": "Transactions"
 }

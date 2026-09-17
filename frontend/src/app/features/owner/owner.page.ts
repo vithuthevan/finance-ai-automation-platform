@@ -1,91 +1,196 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { finalize } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { money, monthStart, today } from '../reports/report-context.service';
+import { monthStart, today } from '../reports/report-context.service';
 import { PlSummary } from '../reports/report.models';
 import { DocumentRequestRow } from '../close/close.models';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
+import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
+import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
+import { LoadingStateComponent } from '../../shared/ui/loading-state.component';
+import { ErrorStateComponent } from '../../shared/ui/error-state.component';
+import { FileDropzoneComponent } from '../../shared/file-dropzone.component';
+import { MoneyDisplayComponent } from '../../shared/ui/money-display.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, MatCardModule, MatButtonModule, MatFormFieldModule, MatSelectModule],
+  imports: [
+    FormsModule, RouterLink, MatCardModule, MatButtonModule, MatFormFieldModule, MatSelectModule,
+    PageHeaderComponent, StatusBadgeComponent, EmptyStateComponent, LoadingStateComponent, ErrorStateComponent,
+    FileDropzoneComponent, MoneyDisplayComponent
+  ],
   template: `
-    <div class="page">
-      <h1>{{ auth.isUploadOnly() ? 'Documents your accountant needs' : 'Send documents to your accountant' }}</h1>
-      <div class="toolbar-row">
-        <mat-form-field><mat-label>Business</mat-label>
-          <mat-select [(ngModel)]="clientId" (selectionChange)="reload()">
-            @for (c of clients; track c.id) { <mat-option [value]="c.id">{{ c.name }}</mat-option> }
-          </mat-select>
-        </mat-form-field>
-      </div>
+    <div class="page owner-home">
+      <app-page-header
+        [title]="auth.isUploadOnly() ? 'Documents your accountant needs' : 'Your business hub'"
+        [subtitle]="auth.isUploadOnly()
+          ? 'Upload what your accountant requested — no bookkeeping menus required.'
+          : 'Send documents and see a simple summary of approved activity.'" />
 
-      <h2>Documents needed</h2>
-      @for (req of openRequests; track req.id) {
-        <mat-card class="metric-card" [class.overdue]="isOverdue(req)">
-          <div class="label">{{ displayTitle(req) }} · {{ req.documentType }}@if (req.dueDate) { · due {{ req.dueDate }} }</div>
-          <div>{{ req.description }}</div>
-          @if (req.status === 'OPEN' || req.status === 'UPLOADED') {
-            <div class="toolbar-row">
-              <input type="file" (change)="onRequestFile($event, req.id)">
-              <button mat-flat-button color="primary" (click)="uploadRequest(req)" [disabled]="!requestFiles[req.id]">Upload</button>
-            </div>
-          }
-          @if (req.status === 'UPLOADED') {
-            <p class="hint">Received — your accountant still needs to accept this file.</p>
-          }
-        </mat-card>
-      }
-      @if (openRequests.length === 0) {
-        <p class="hint">No open document requests right now.</p>
-      }
-
-      @if (completedRequests.length) {
-        <h2>Completed requests</h2>
-        @for (req of completedRequests; track req.id) {
-          <mat-card class="metric-card muted">
-            <div class="label">{{ displayTitle(req) }} · {{ req.status }}</div>
-            <div>{{ req.description }}</div>
-          </mat-card>
-        }
-      }
-
-      @if (!auth.isUploadOnly()) {
-        <h2>Upload other documents</h2>
-        <div class="toolbar-row">
-          <input type="file" (change)="onFile($event)">
-          <button mat-flat-button color="primary" (click)="upload('RECEIPT')">Upload receipt</button>
-          <button mat-stroked-button (click)="upload('PURCHASE_INVOICE')">Upload invoice</button>
-          <button mat-stroked-button (click)="upload('BANK_STATEMENT')">Upload bank statement</button>
+      @if (clients.length > 1) {
+        <div class="filter-bar">
+          <mat-form-field appearance="outline">
+            <mat-label>Business</mat-label>
+            <mat-select [(ngModel)]="clientId" (selectionChange)="reload()">
+              @for (c of clients; track c.id) { <mat-option [value]="c.id">{{ c.name }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
         </div>
-        <h2>Approved totals this month</h2>
-        @if (summary && !summary.hasApprovedData) {
-          <p class="empty-report">No approved activity yet this month.</p>
-        } @else if (summary) {
-          <div class="grid-2">
-            <mat-card class="metric-card"><div class="label">Income</div><div class="value">{{ format(summary.totalIncome) }} {{ summary.currencyCode }}</div></mat-card>
-            <mat-card class="metric-card"><div class="label">Expenses</div><div class="value">{{ format(summary.totalExpenses) }} {{ summary.currencyCode }}</div></mat-card>
-            <mat-card class="metric-card"><div class="label">{{ summary.resultType }}</div><div class="value">{{ format(summary.netResult) }} {{ summary.currencyCode }}</div></mat-card>
+      }
+
+      @if (loadError) {
+        <app-error-state title="Could not load requests" [message]="loadError" (retry)="reload()" />
+      } @else if (loading) {
+        <app-loading-state message="Loading your requests…" />
+      } @else {
+        <section class="card-block">
+          <div class="toolbar-row">
+            <div>
+              <h2>Document requests</h2>
+              <p class="hint">Open → upload your file → your accountant completes the review.</p>
+            </div>
+            <a mat-stroked-button routerLink="/app/documents">View my documents</a>
           </div>
+
+          @for (req of openRequests; track req.id) {
+            <mat-card class="metric-card request-card" [class.overdue]="isOverdue(req)">
+              <div class="request-head">
+                <div>
+                  <div class="request-title">{{ displayTitle(req) }}</div>
+                  <div class="request-meta">
+                    {{ req.documentType }}
+                    @if (req.dueDate) { · Due {{ req.dueDate }} }
+                  </div>
+                </div>
+                <app-status-badge [status]="req.status" />
+              </div>
+              @if (req.description) { <p class="request-desc">{{ req.description }}</p> }
+
+              <div class="owner-request-steps" aria-label="Request progress">
+                <span class="step" [class.is-done]="req.status !== 'OPEN'" [class.is-active]="req.status === 'OPEN'">1 · Requested</span>
+                <span aria-hidden="true">→</span>
+                <span class="step" [class.is-done]="req.status === 'UPLOADED' || req.status === 'COMPLETED'" [class.is-active]="req.status === 'UPLOADED'">2 · Uploaded</span>
+                <span aria-hidden="true">→</span>
+                <span class="step" [class.is-done]="req.status === 'COMPLETED'" [class.is-active]="req.status === 'COMPLETED'">3 · Completed</span>
+              </div>
+
+              @if (req.status === 'OPEN' || req.status === 'UPLOADED') {
+                <div class="upload-row">
+                  <app-file-dropzone
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    [fileName]="requestFiles[req.id]?.name || ''"
+                    hint="PDF or image"
+                    (fileSelected)="onRequestFileSelected($event, req.id)" />
+                  <button mat-flat-button color="primary" type="button" (click)="uploadRequest(req)"
+                    [disabled]="!requestFiles[req.id] || uploadingId === req.id">
+                    {{ uploadingId === req.id ? 'Uploading…' : (req.status === 'OPEN' ? 'Upload file' : 'Replace file') }}
+                  </button>
+                </div>
+              }
+              @if (req.status === 'UPLOADED') {
+                <p class="hint">File received — your accountant will review and mark complete.</p>
+              }
+            </mat-card>
+          }
+
+          @if (openRequests.length === 0) {
+            <app-empty-state
+              title="No open requests"
+              description="When your accountant needs a document, it will appear here with a due date."
+              icon="assignment" />
+          }
+        </section>
+
+        @if (completedRequests.length) {
+          <section class="card-block">
+            <h2>Completed requests</h2>
+            @for (req of completedRequests; track req.id) {
+              <mat-card class="metric-card muted">
+                <div class="request-head">
+                  <div class="request-title">{{ displayTitle(req) }}</div>
+                  <app-status-badge [status]="req.status" />
+                </div>
+              </mat-card>
+            }
+          </section>
+        }
+
+        @if (!auth.isUploadOnly()) {
+          <section class="card-block">
+            <h2>Upload other documents</h2>
+            <p class="hint">Receipts, invoices, or bank statements not tied to a specific request.</p>
+            <app-file-dropzone
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.csv"
+              [fileName]="file?.name || ''"
+              (fileSelected)="onFile($event)" />
+            <div class="form-actions">
+              <button mat-flat-button color="primary" type="button" (click)="upload('RECEIPT')" [disabled]="!file || generalUploading">Upload receipt</button>
+              <button mat-stroked-button type="button" (click)="upload('PURCHASE_INVOICE')" [disabled]="!file || generalUploading">Upload invoice</button>
+              <button mat-stroked-button type="button" (click)="upload('BANK_STATEMENT')" [disabled]="!file || generalUploading">Upload bank statement</button>
+            </div>
+          </section>
+
+          <section class="card-block">
+            <h2>Approved totals this month</h2>
+            @if (summary && !summary.hasApprovedData) {
+              <app-empty-state title="No approved activity yet" description="Totals appear after your accountant approves transactions." icon="insights" />
+            } @else if (summary) {
+              <div class="grid-2">
+                <mat-card class="metric-card">
+                  <div class="label">Income</div>
+                  <app-money-display [value]="summary.totalIncome" [currency]="summary.currencyCode" [emphasis]="true" />
+                </mat-card>
+                <mat-card class="metric-card">
+                  <div class="label">Expenses</div>
+                  <app-money-display [value]="summary.totalExpenses" [currency]="summary.currencyCode" [emphasis]="true" />
+                </mat-card>
+                <mat-card class="metric-card">
+                  <div class="label">{{ summary.resultType }}</div>
+                  <app-money-display [value]="summary.netResult" [currency]="summary.currencyCode" [emphasis]="true" />
+                </mat-card>
+              </div>
+              <a mat-button routerLink="/app/reports">Open financial summary</a>
+            }
+          </section>
         }
       }
     </div>
   `,
-  styles: ['.overdue { border-left: 4px solid #d32f2f; } .muted { opacity: .75; }']
+  styles: [`
+    .request-card { margin-bottom: 12px; }
+    .request-card.overdue { border-left: 4px solid var(--fp-danger); }
+    .request-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .request-title { font-weight: 600; color: var(--fp-ink); }
+    .request-meta, .request-desc { font-size: 13px; color: var(--fp-muted); margin-top: 4px; }
+    .request-desc { margin: 8px 0 0; }
+    .upload-row { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .muted { opacity: .85; margin-bottom: 8px; }
+    @media (max-width: 640px) {
+      .request-head { flex-direction: column; }
+    }
+  `]
 })
 export class OwnerPage implements OnInit {
+  private readonly api = inject(ApiService);
+  readonly auth = inject(AuthService);
+
   clients: any[] = [];
   requests: DocumentRequestRow[] = [];
   summary: PlSummary | null = null;
   clientId = '';
   file: File | null = null;
   requestFiles: Record<string, File> = {};
-
-  constructor(private api: ApiService, readonly auth: AuthService) {}
+  loading = false;
+  loadError = '';
+  uploadingId: string | null = null;
+  generalUploading = false;
 
   ngOnInit(): void {
     this.api.list<any>('/api/v1/clients').subscribe((clients) => {
@@ -96,9 +201,19 @@ export class OwnerPage implements OnInit {
   }
 
   reload(): void {
-    if (!this.clientId) return;
-    this.api.list<DocumentRequestRow>(`/api/v1/clients/${this.clientId}/document-requests`, { size: 50 }).subscribe((requests) => {
-      this.requests = requests;
+    if (!this.clientId) {
+      return;
+    }
+    this.loading = true;
+    this.loadError = '';
+    this.api.list<DocumentRequestRow>(`/api/v1/clients/${this.clientId}/document-requests`, { size: 50 }).pipe(
+      finalize(() => this.loading = false)
+    ).subscribe({
+      next: (requests) => this.requests = requests,
+      error: () => {
+        this.requests = [];
+        this.loadError = 'Unable to load document requests.';
+      }
     });
     if (this.auth.isUploadOnly()) {
       this.summary = null;
@@ -113,30 +228,36 @@ export class OwnerPage implements OnInit {
     });
   }
 
-  format(value: unknown): string {
-    return money(value);
+  onFile(file: File): void {
+    this.file = file;
   }
 
-  onFile(event: Event): void {
-    this.file = (event.target as HTMLInputElement).files?.[0] ?? null;
-  }
-
-  onRequestFile(event: Event, requestId: string): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) {
-      this.requestFiles[requestId] = file;
-    }
+  onRequestFileSelected(file: File, requestId: string): void {
+    this.requestFiles[requestId] = file;
   }
 
   upload(type: string): void {
-    if (!this.file || !this.clientId) return;
-    this.api.upload(`/api/v1/clients/${this.clientId}/documents`, this.file, { documentType: type }).subscribe(() => this.reload());
+    if (!this.file || !this.clientId || this.generalUploading) {
+      return;
+    }
+    this.generalUploading = true;
+    this.api.upload(`/api/v1/clients/${this.clientId}/documents`, this.file, { documentType: type }).pipe(
+      finalize(() => this.generalUploading = false)
+    ).subscribe(() => {
+      this.file = null;
+      this.reload();
+    });
   }
 
   uploadRequest(req: DocumentRequestRow): void {
     const file = this.requestFiles[req.id];
-    if (!file || !this.clientId) return;
-    this.api.upload(`/api/v1/clients/${this.clientId}/document-requests/${req.id}/upload`, file).subscribe({
+    if (!file || !this.clientId || this.uploadingId) {
+      return;
+    }
+    this.uploadingId = req.id;
+    this.api.upload(`/api/v1/clients/${this.clientId}/document-requests/${req.id}/upload`, file).pipe(
+      finalize(() => this.uploadingId = null)
+    ).subscribe({
       next: () => {
         delete this.requestFiles[req.id];
         this.reload();

@@ -1,0 +1,108 @@
+/* Finance Platform design tokens — light mode (dark-ready aliases) */
+
+:root {
+  /* Color — semantic */
+  --fp-background: #f4f6f9;
+  --fp-surface: #ffffff;
+  --fp-surface-subtle: #f8f9fb;
+  --fp-surface-hover: #eef1f6;
+  --fp-border: #e2e6ee;
+  --fp-border-strong: #c8ced9;
+  --fp-text-primary: #1a2332;
+  --fp-text-secondary: #4a5568;
+  --fp-text-muted: #6b7280;
+  --fp-primary: #2563eb;
+  --fp-primary-hover: #1d4ed8;
+  --fp-primary-subtle: #eff6ff;
+  --fp-primary-on: #ffffff;
+  --fp-success: #047857;
+  --fp-success-subtle: #ecfdf5;
+  --fp-warning: #b45309;
+  --fp-warning-subtle: #fffbeb;
+  --fp-danger: #b91c1c;
+  --fp-danger-subtle: #fef2f2;
+  --fp-info: #1d4ed8;
+  --fp-info-subtle: #eff6ff;
+  --fp-neutral: #475569;
+  --fp-neutral-subtle: #f1f5f9;
+
+  /* Typography */
+  --fp-font-body: 'Manrope', 'Segoe UI', system-ui, sans-serif;
+  --fp-font-display: 'Sora', 'Manrope', system-ui, sans-serif;
+  --fp-text-page-title: 1.625rem;
+  --fp-text-section: 1rem;
+  --fp-text-card-title: 0.9375rem;
+  --fp-text-body: 0.875rem;
+  --fp-text-caption: 0.75rem;
+  --fp-text-table-header: 0.6875rem;
+  --fp-text-label: 0.8125rem;
+  --fp-text-financial: 1.125rem;
+  --fp-weight-regular: 400;
+  --fp-weight-medium: 500;
+  --fp-weight-semibold: 600;
+  --fp-weight-bold: 700;
+
+  /* Spacing (4px base) */
+  --fp-space-1: 4px;
+  --fp-space-2: 8px;
+  --fp-space-3: 12px;
+  --fp-space-4: 16px;
+  --fp-space-5: 20px;
+  --fp-space-6: 24px;
+  --fp-space-8: 32px;
+  --fp-space-10: 40px;
+
+  /* Radius */
+  --fp-radius-sm: 6px;
+  --fp-radius-md: 8px;
+  --fp-radius-lg: 10px;
+  --fp-radius-full: 999px;
+
+  /* Shadows */
+  --fp-shadow-sm: 0 1px 2px rgba(26, 35, 50, 0.04), 0 4px 12px rgba(26, 35, 50, 0.04);
+  --fp-shadow-md: 0 4px 16px rgba(26, 35, 50, 0.08);
+
+  /* Layout */
+  --fp-content-max: 1280px;
+  --fp-sidebar-width: 232px;
+  --fp-sidebar-collapsed: 64px;
+  --fp-topbar-height: 56px;
+  --fp-control-height: 40px;
+
+  /* Breakpoints (reference) */
+  --fp-bp-sm: 480px;
+  --fp-bp-md: 768px;
+  --fp-bp-lg: 1024px;
+  --fp-bp-xl: 1280px;
+
+  /* Z-index */
+  --fp-z-topbar: 20;
+  --fp-z-sidebar: 30;
+  --fp-z-drawer: 40;
+  --fp-z-overlay: 35;
+
+  /* Motion */
+  --fp-transition-fast: 150ms ease;
+  --fp-transition-base: 200ms ease;
+
+  /* Legacy aliases (keep during migration) */
+  --fp-orange: var(--fp-primary);
+  --fp-orange-soft: var(--fp-primary-subtle);
+  --fp-orange-hover: var(--fp-primary-hover);
+  --fp-ink: var(--fp-text-primary);
+  --fp-muted: var(--fp-text-muted);
+  --fp-line: var(--fp-border);
+  --fp-canvas: var(--fp-background);
+  --fp-sidebar: var(--fp-surface-subtle);
+  --fp-radius: var(--fp-radius-md);
+  --fp-shadow: var(--fp-shadow-sm);
+  --fp-font: var(--fp-font-body);
+  --fp-display: var(--fp-font-display);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fp-transition-fast: 0ms;
+    --fp-transition-base: 0ms;
+  }
+}

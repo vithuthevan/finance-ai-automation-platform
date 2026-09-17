@@ -1,18 +1,23 @@
 import { Component, OnInit } from '@angular/core';
+import { finalize } from 'rxjs';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
 import { ReportContextService, money } from './report-context.service';
 import { ReportFiltersComponent } from './report-filters.component';
 import { saveBlob } from './report-download';
 import { ExpenseSummary } from './report.models';
+import { ToastService } from '../../shared/toast.service';
+import { PageHeaderComponent } from '../../shared/ui/page-header.component';
 
 @Component({
   standalone: true,
-  imports: [DatePipe, ReportFiltersComponent],
+  imports: [DatePipe, ReportFiltersComponent, PageHeaderComponent],
   template: `
     <div class="page">
-      <h1>Expense report</h1>
-      <app-report-filters [exporting]="exporting" [message]="message" (run)="load()" (export)="exportFile($event)"></app-report-filters>
+      <app-page-header
+        title="Expense report"
+        subtitle="Analyze approved expenses by category and largest transactions for the selected period." />
+      <app-report-filters [exporting]="exporting" [loading]="loading || ctx.clientsLoading()" [message]="message" (run)="load()" (export)="exportFile($event)"></app-report-filters>
       @if (report && !report.hasApprovedData) {
         <p class="empty-report">No approved expenses for this period. Draft and void records are excluded.</p>
       } @else if (report) {
@@ -50,19 +55,24 @@ import { ExpenseSummary } from './report.models';
 export class ExpenseReportPage implements OnInit {
   report: ExpenseSummary | null = null;
   message = '';
+  loading = false;
   exporting = false;
 
-  constructor(private api: ApiService, readonly ctx: ReportContextService) {}
+  constructor(private api: ApiService, readonly ctx: ReportContextService, private toast: ToastService) {}
 
   ngOnInit(): void {
     this.ctx.loadClients(() => this.load());
   }
 
   load(): void {
-    if (!this.ctx.clientId()) {
+    if (!this.ctx.clientId() || this.ctx.clientsError()) {
       return;
     }
-    this.api.get<ExpenseSummary>(`/api/v1/clients/${this.ctx.clientId()}/reports/expenses`, this.ctx.params()).subscribe({
+    this.message = '';
+    this.loading = true;
+    this.api.get<ExpenseSummary>(`/api/v1/clients/${this.ctx.clientId()}/reports/expenses`, this.ctx.params()).pipe(
+      finalize(() => this.loading = false)
+    ).subscribe({
       next: (report) => this.report = report,
       error: (err) => this.message = err.error?.detail || 'Unable to load expense report'
     });
@@ -72,7 +82,7 @@ export class ExpenseReportPage implements OnInit {
     this.exporting = true;
     this.api.downloadAttachment(`/api/v1/clients/${this.ctx.clientId()}/reports/expenses/export`, { ...this.ctx.params(), format }).subscribe({
       next: (file) => { saveBlob(file.blob, file.filename || `Expenses.${format}`); this.exporting = false; },
-      error: () => { this.message = 'Export failed'; this.exporting = false; }
+      error: () => { this.toast.error('Export failed'); this.exporting = false; }
     });
   }
 
