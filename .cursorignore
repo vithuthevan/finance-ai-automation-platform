@@ -1,0 +1,64 @@
+# -------------------------
+# Dependencies
+# -------------------------
+**/node_modules/
+
+# -------------------------
+# Build / compiled output
+# -------------------------
+**/dist/
+**/build/
+**/target/
+**/bin/
+**/obj/
+**/.angular/
+**/.next/
+**/out/
+
+# -------------------------
+# Coverage / caches
+# -------------------------
+**/coverage/
+**/.cache/
+**/.turbo/
+**/.pytest_cache/
+**/__pycache__/
+**/*.pyc
+
+# -------------------------
+# Logs
+# -------------------------
+**/*.log
+**/logs/
+test-output.txt
+
+# -------------------------
+# Generated QA artifacts
+# -------------------------
+qa-results-*
+qa-run-*
+
+# -------------------------
+# Temporary files
+# -------------------------
+**/*.tmp
+**/*.temp
+**/*.bak
+
+# -------------------------
+# Environment / secrets
+# -------------------------
+.env
+.env.*
+**/.env
+**/.env.*
+**/credentials.json
+**/secrets.json
+
+# -------------------------
+# IDE / OS files
+# -------------------------
+.idea/
+.DS_Store
+Thumbs.db
+

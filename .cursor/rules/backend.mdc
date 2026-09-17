@@ -1,0 +1,17 @@
+---
+description: Backend conventions
+globs: backend/**/*.java
+alwaysApply: false
+---
+
+Backend conventions:
+- The backend uses Java and Spring Boot.
+- Preserve the existing modular monolith structure.
+- Respect module boundaries and existing dependencies.
+- Follow the existing Controller -> Service -> Repository architecture.
+- Keep controllers thin and business logic in services.
+- Follow existing DTO, entity, mapper, validation, and exception-handling patterns.
+- Use existing Spring Security and authorization mechanisms.
+- Preserve tenant isolation and existing firm/client ownership rules.
+- Do not trust tenant or authorization-sensitive identifiers supplied by the client when they can be derived from the authenticated user.
+- Follow existing API response and error conventions.

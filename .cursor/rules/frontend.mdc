@@ -1,0 +1,15 @@
+---
+description: Frontend conventions
+globs: frontend/**/*.{ts,html,scss,css}
+alwaysApply: false
+---
+
+Frontend conventions:
+- This frontend uses Angular.
+- Follow the existing component, service, routing, and state-management patterns.
+- Prefer Reactive Forms for forms with validation or non-trivial behavior.
+- Keep business logic out of HTML templates.
+- Reuse existing shared components before creating new ones.
+- Preserve the existing visual design and layout unless redesign is requested.
+- Keep API calls inside the existing service layer.
+- Maintain existing naming and folder conventions.

@@ -1,0 +1,14 @@
+---
+description: Database and migration conventions
+globs: backend/**/db/migration/**,backend/**/*.sql
+alwaysApply: false
+---
+
+Database conventions:
+- PostgreSQL is the primary database.
+- Database schema changes must follow the existing Flyway migration approach.
+- Create a new migration rather than modifying an already-applied migration.
+- Preserve existing naming conventions for tables, columns, indexes, and constraints.
+- Add database constraints where they protect important invariants.
+- Consider tenant isolation when adding queries, relationships, or constraints.
+- Avoid destructive schema changes unless explicitly requested.

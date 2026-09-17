@@ -1,0 +1,13 @@
+---
+description: Finance platform architecture
+alwaysApply: true
+---
+
+This repository is a finance automation platform with separate frontend and backend applications.
+
+Architecture principles:
+- Preserve the existing architecture and module boundaries.
+- Follow existing patterns before introducing new abstractions.
+- Keep frontend, backend, database, and infrastructure concerns separated.
+- Reuse existing shared components/services/utilities where appropriate.
+- Do not introduce new libraries or architectural patterns unless necessary.
