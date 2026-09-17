@@ -1,6 +1,13 @@
 FROM eclipse-temurin:17-jdk-alpine AS build
 WORKDIR /workspace
-COPY gradlew gradlew.bat settings.gradle build.gradle ./
+RUN apk add --no-cache bash curl unzip \
+    && curl -fL --retry 10 --retry-all-errors --retry-delay 15 --connect-timeout 60 --max-time 0 \
+      https://services.gradle.org/distributions/gradle-9.5.1-bin.zip -o /tmp/gradle.zip \
+    && unzip -q /tmp/gradle.zip -d /opt \
+    && mv /opt/gradle-9.5.1 /opt/gradle \
+    && rm /tmp/gradle.zip
+ENV PATH="/opt/gradle/bin:${PATH}"
+COPY settings.gradle build.gradle ./
 COPY gradle ./gradle
 COPY platform-core ./platform-core
 COPY module-auth ./module-auth
@@ -8,7 +15,7 @@ COPY module-finance ./module-finance
 COPY module-ai ./module-ai
 COPY module-reporting ./module-reporting
 COPY platform-app ./platform-app
-RUN chmod +x ./gradlew && ./gradlew :platform-app:bootJar --no-daemon -x test
+RUN gradle :platform-app:bootJar --no-daemon -x test
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app

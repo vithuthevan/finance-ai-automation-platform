@@ -1,0 +1,25 @@
+# Docker / shared development. Secrets come from environment — no committed JWT defaults.
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/finance_platform}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET}
+  auth:
+    cookie:
+      secure: ${APP_AUTH_COOKIE_SECURE:false}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  storage:
+    provider: ${APP_STORAGE_PROVIDER:${STORAGE_PROVIDER:local}}
+    local:
+      root: ${APP_STORAGE_LOCAL_ROOT:${STORAGE_LOCAL_PATH:/data/uploads}}

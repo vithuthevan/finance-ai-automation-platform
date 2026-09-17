@@ -116,17 +116,10 @@ Alternatives: Cloudflare orange-cloud proxy to the VPS, or host Nginx terminatin
 
 - Firewall: only **22 / 80 / 443** public ([section 7](#7-firewall))
 - Volumes already persist data: `postgres_data`, `finance_uploads`
-- Backups: schedule `pg_dump` (or volume snapshots) and copy uploads
-- Documents in production: set `APP_STORAGE_PROVIDER=s3` and the `APP_STORAGE_S3_*` variables ([DEPLOYMENT.md](DEPLOYMENT.md))
+- **Backups (required after go-live):** see [Backup after first boot](#backup-after-first-boot)
+- Documents in production: set `APP_STORAGE_PROVIDER=s3` and the `APP_STORAGE_S3_*` variables ([DEPLOYMENT.md](DEPLOYMENT.md)); enable bucket versioning
 - Set `APP_FRONTEND_BASE_URL=https://your.domain.com` if you enable email links
-
-### Example Postgres dump
-
-```bash
-docker compose exec -T postgres \
-  pg_dump -U "${POSTGRES_USER:-postgres}" "${POSTGRES_DB:-finance_platform}" \
-  > "backup-$(date +%Y%m%d).sql"
-```
+- Disaster recovery: [DISASTER_RECOVERY_RUNBOOK.md](../DISASTER_RECOVERY_RUNBOOK.md)
 
 ## 7. Firewall
 
@@ -147,13 +140,30 @@ Do **not** expose **5432**, **8080**, or **4200** once Caddy (or another reverse
 
 ## 8. Updates / redeploy
 
+Run a backup **before** pulling a release that includes new Flyway migrations:
+
 ```bash
+sudo /opt/finance-ai-automation-platform/deploy/backup/run-backup.sh
 cd /opt/finance-ai-automation-platform
 git pull
-docker compose up --build -d
+docker compose -f docker-compose.prod.yml --env-file .env up --build -d
 ```
 
-Flyway applies pending migrations automatically when the backend starts.
+Flyway applies pending migrations automatically when the backend starts. There are no down migrations — see [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md) if a migration fails.
+
+## Backup after first boot
+
+On-server volumes are **not** a disaster-recovery plan. After the first production boot:
+
+1. Copy `deploy/backup/backup.env.example` to `deploy/backup/backup.env` and set `BACKUP_ROOT`, retention, and off-server credentials.
+2. `sudo mkdir -p /var/backups/finance-platform /var/log/finance-platform`
+3. Run `sudo deploy/backup/run-backup.sh` once and confirm a timestamped `.sql.gz` (not `.tmp`) exists.
+4. Enable `BACKUP_OFFSITE_ENABLED=true` and sync to a **separate** S3-compatible bucket (different account from application storage).
+5. Install `deploy/backup/systemd/finance-platform-backup.timer` or `deploy/backup/cron.example` (daily 02:00).
+6. Archive `.env` / `APP_JWT_SECRET` in a password manager.
+7. After a staging restore drill, sign the checklist in [DISASTER_RECOVERY_RUNBOOK.md](../DISASTER_RECOVERY_RUNBOOK.md). Until then recovery is **NOT YET VALIDATED**.
+
+Full procedure: [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md).
 
 ## Post-deploy smoke checklist
 

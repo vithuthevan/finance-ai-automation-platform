@@ -1,17 +1,16 @@
-# Development Docker Compose only. For production use docker-compose.prod.yml with a filled .env file.
+# Production Docker Compose. Development defaults live in docker-compose.yml.
+# Usage: docker compose -f docker-compose.prod.yml --env-file .env up --build -d
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-finance_platform}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-finance_platform}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 8
@@ -25,22 +24,21 @@ services:
       driver: json-file
       options:
         max-size: "10m"
-        max-file: "3"
+        max-file: "5"
     env_file:
       - path: .env
-        required: false
+        required: true
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      # Development profile only. Production must use docker-compose.prod.yml.
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-finance_platform}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-      APP_JWT_SECRET: ${APP_JWT_SECRET:-local-docker-compose-jwt-secret-not-for-production}
-      APP_STORAGE_PROVIDER: ${APP_STORAGE_PROVIDER:-local}
-      APP_STORAGE_LOCAL_ROOT: /data/uploads
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      APP_STORAGE_PROVIDER: ${APP_STORAGE_PROVIDER}
+      APP_STORAGE_LOCAL_ROOT: ${APP_STORAGE_LOCAL_ROOT:-/data/uploads}
       APP_STORAGE_S3_BUCKET: ${APP_STORAGE_S3_BUCKET:-}
       APP_STORAGE_S3_REGION: ${APP_STORAGE_S3_REGION:-}
       APP_STORAGE_S3_ENDPOINT: ${APP_STORAGE_S3_ENDPOINT:-}
@@ -49,12 +47,17 @@ services:
       APP_AI_ENABLED: ${APP_AI_ENABLED:-false}
       APP_AI_PROVIDER: ${APP_AI_PROVIDER:-disabled}
       APP_AI_API_KEY: ${APP_AI_API_KEY:-}
-      APP_EMAIL_PROVIDER: ${APP_EMAIL_PROVIDER:-log}
+      APP_EMAIL_PROVIDER: ${APP_EMAIL_PROVIDER}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_TLS: ${MAIL_TLS:-true}
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-}
-      # Local HTTP demo: refresh cookies must not require Secure
-      APP_AUTH_COOKIE_SECURE: ${APP_AUTH_COOKIE_SECURE:-false}
-      APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL: ${APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:-priya@harborledger.demo}
-      APP_FRONTEND_BASE_URL: ${APP_FRONTEND_BASE_URL:-http://localhost:4200}
+      APP_AUTH_COOKIE_SECURE: ${APP_AUTH_COOKIE_SECURE:-true}
+      APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL: ${APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:-}
+      APP_FRONTEND_BASE_URL: ${APP_FRONTEND_BASE_URL}
     ports:
       - "8080:8080"
     volumes:

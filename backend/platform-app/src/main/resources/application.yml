@@ -2,6 +2,7 @@ spring:
   application:
     name: finance-platform
   profiles:
+    # Local IDE default only. Docker dev uses `dev`; production must set `prod` explicitly.
     default: local
   jpa:
     hibernate:
@@ -28,6 +29,7 @@ app:
     expiration-ms: ${APP_JWT_EXPIRATION_MS:3600000}
     issuer: ${APP_JWT_ISSUER:finance-platform}
   auth:
+    email-verification-required: ${APP_AUTH_EMAIL_VERIFICATION_REQUIRED:false}
     cookie:
       secure: ${APP_AUTH_COOKIE_SECURE:false}
   storage:
@@ -71,6 +73,8 @@ app:
     maintenance-cron: ${APP_SUBSCRIPTION_MAINTENANCE_CRON:0 30 7 * * *}
   platform:
     bootstrap-admin-email: ${APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:}
+  observability:
+    metrics-refresh-ms: ${APP_OBSERVABILITY_METRICS_REFRESH_MS:60000}
 
 springdoc:
   api-docs:
@@ -80,4 +84,23 @@ springdoc:
 
 logging:
   pattern:
-    console: "%d{ISO8601} %-5level [%thread] %logger{36} - %msg%n"
+    console: "%d{ISO8601} %-5level [%thread] [req:%X{requestId:-}] [user:%X{userId:-}] [firm:%X{firmId:-}] %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health, prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
