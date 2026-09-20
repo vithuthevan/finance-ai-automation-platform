@@ -142,3 +142,5 @@ Base path: `/api/v1`
 - [Product roadmap](docs/PRODUCT_ROADMAP.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [VPS hosting (Docker Compose)](docs/VPS_HOSTING.md)
+- [Backup & recovery](docs/reports/BACKUP_RECOVERY_IMPLEMENTATION.md) · [DR runbook](docs/reports/DISASTER_RECOVERY_RUNBOOK.md)
+- [Audits, runbooks, and readiness reports](docs/reports/)

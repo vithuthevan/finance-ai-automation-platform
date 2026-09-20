@@ -35,6 +35,6 @@ sudo deploy/backup/run-backup.sh
 
 ## Documentation
 
-- [BACKUP_RECOVERY_IMPLEMENTATION.md](../../BACKUP_RECOVERY_IMPLEMENTATION.md) — implementation guide
-- [DISASTER_RECOVERY_RUNBOOK.md](../../DISASTER_RECOVERY_RUNBOOK.md) — scenario playbooks
+- [BACKUP_RECOVERY_IMPLEMENTATION.md](../../docs/reports/BACKUP_RECOVERY_IMPLEMENTATION.md) — implementation guide
+- [DISASTER_RECOVERY_RUNBOOK.md](../../docs/reports/DISASTER_RECOVERY_RUNBOOK.md) — scenario playbooks
 - [BACKUP_DISASTER_RECOVERY_AUDIT.md](../../BACKUP_DISASTER_RECOVERY_AUDIT.md) — persistence and risk audit

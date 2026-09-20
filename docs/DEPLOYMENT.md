@@ -58,4 +58,4 @@ V1 stores JWT access/refresh tokens in the browser via `AuthService` and attache
 - Database files must live on a volume or managed PostgreSQL, not in the application image.
 - Local document storage in Compose is mounted at `/data/uploads` (`finance_uploads` volume).
 - Production should set `APP_STORAGE_PROVIDER=s3`.
-- Backup, restore, and disaster recovery: [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md), [DISASTER_RECOVERY_RUNBOOK.md](../DISASTER_RECOVERY_RUNBOOK.md), scripts in [`deploy/backup/`](../deploy/backup/).
+- Backup, restore, and disaster recovery: [BACKUP_RECOVERY_IMPLEMENTATION.md](reports/BACKUP_RECOVERY_IMPLEMENTATION.md), [DISASTER_RECOVERY_RUNBOOK.md](reports/DISASTER_RECOVERY_RUNBOOK.md), scripts in [`deploy/backup/`](../deploy/backup/).

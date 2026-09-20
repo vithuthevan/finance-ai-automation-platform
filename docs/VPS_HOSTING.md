@@ -119,7 +119,7 @@ Alternatives: Cloudflare orange-cloud proxy to the VPS, or host Nginx terminatin
 - **Backups (required after go-live):** see [Backup after first boot](#backup-after-first-boot)
 - Documents in production: set `APP_STORAGE_PROVIDER=s3` and the `APP_STORAGE_S3_*` variables ([DEPLOYMENT.md](DEPLOYMENT.md)); enable bucket versioning
 - Set `APP_FRONTEND_BASE_URL=https://your.domain.com` if you enable email links
-- Disaster recovery: [DISASTER_RECOVERY_RUNBOOK.md](../DISASTER_RECOVERY_RUNBOOK.md)
+- Disaster recovery: [DISASTER_RECOVERY_RUNBOOK.md](reports/DISASTER_RECOVERY_RUNBOOK.md)
 
 ## 7. Firewall
 
@@ -149,7 +149,7 @@ git pull
 docker compose -f docker-compose.prod.yml --env-file .env up --build -d
 ```
 
-Flyway applies pending migrations automatically when the backend starts. There are no down migrations — see [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md) if a migration fails.
+Flyway applies pending migrations automatically when the backend starts. There are no down migrations — see [BACKUP_RECOVERY_IMPLEMENTATION.md](reports/BACKUP_RECOVERY_IMPLEMENTATION.md) if a migration fails.
 
 ## Backup after first boot
 
@@ -161,9 +161,9 @@ On-server volumes are **not** a disaster-recovery plan. After the first producti
 4. Enable `BACKUP_OFFSITE_ENABLED=true` and sync to a **separate** S3-compatible bucket (different account from application storage).
 5. Install `deploy/backup/systemd/finance-platform-backup.timer` or `deploy/backup/cron.example` (daily 02:00).
 6. Archive `.env` / `APP_JWT_SECRET` in a password manager.
-7. After a staging restore drill, sign the checklist in [DISASTER_RECOVERY_RUNBOOK.md](../DISASTER_RECOVERY_RUNBOOK.md). Until then recovery is **NOT YET VALIDATED**.
+7. After a staging restore drill, sign the checklist in [DISASTER_RECOVERY_RUNBOOK.md](reports/DISASTER_RECOVERY_RUNBOOK.md). Until then recovery is **NOT YET VALIDATED**.
 
-Full procedure: [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md).
+Full procedure: [BACKUP_RECOVERY_IMPLEMENTATION.md](reports/BACKUP_RECOVERY_IMPLEMENTATION.md).
 
 ## Post-deploy smoke checklist
 

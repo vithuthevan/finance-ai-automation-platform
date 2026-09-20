@@ -1,6 +1,6 @@
 [Unit]
 Description=Alert when Finance Platform backup fails
-Documentation=file:///opt/finance-ai-automation-platform/BACKUP_RECOVERY_IMPLEMENTATION.md
+Documentation=file:///opt/finance-ai-automation-platform/docs/reports/BACKUP_RECOVERY_IMPLEMENTATION.md
 
 [Service]
 Type=oneshot

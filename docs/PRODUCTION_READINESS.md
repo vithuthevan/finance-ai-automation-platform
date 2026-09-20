@@ -13,7 +13,7 @@ Use this checklist before deploying to a real environment. Phase 9 validates bui
 
 ## Database
 
-- [ ] Automated PostgreSQL backups configured after first deploy ([BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md)) — daily minimum; PITR is not in the Compose pilot
+- [ ] Automated PostgreSQL backups configured after first deploy ([BACKUP_RECOVERY_IMPLEMENTATION.md](reports/BACKUP_RECOVERY_IMPLEMENTATION.md)) — daily minimum; PITR is not in the Compose pilot
 - [ ] Off-server copy of backups enabled (`BACKUP_OFFSITE_ENABLED=true`)
 - [ ] Flyway migrations applied on deploy (`V1` → latest, currently `V29`)
 - [ ] Verify migration on staging before production
@@ -37,7 +37,7 @@ Use this checklist before deploying to a real environment. Phase 9 validates bui
 
 - [ ] Upload size limits aligned: Spring multipart, app config, Nginx `client_max_body_size`
 - [ ] Storage root/S3 bucket not web-accessible directly
-- [ ] Backup/versioning for document objects (local volume archive **or** S3 versioning — see [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md))
+- [ ] Backup/versioning for document objects (local volume archive **or** S3 versioning — see [BACKUP_RECOVERY_IMPLEMENTATION.md](reports/BACKUP_RECOVERY_IMPLEMENTATION.md))
 
 ## Email
 

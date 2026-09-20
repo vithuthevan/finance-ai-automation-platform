@@ -42,4 +42,4 @@ Terminate HTTPS at Nginx, AWS ALB, Cloudflare, or the host platform. The backend
 
 Sample config: [`Caddyfile`](Caddyfile). It reverse-proxies `https://your.domain.com` to the Compose frontend on `localhost:4200`. Full steps (secrets, `docker compose`, firewall, smoke checks): [docs/VPS_HOSTING.md](../docs/VPS_HOSTING.md).
 
-Backup and disaster recovery (PostgreSQL + documents): [`backup/`](backup/) and [BACKUP_RECOVERY_IMPLEMENTATION.md](../BACKUP_RECOVERY_IMPLEMENTATION.md).
+Backup and disaster recovery (PostgreSQL + documents): [`backup/`](backup/) and [BACKUP_RECOVERY_IMPLEMENTATION.md](../docs/reports/BACKUP_RECOVERY_IMPLEMENTATION.md).

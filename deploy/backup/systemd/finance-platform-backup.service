@@ -1,6 +1,6 @@
 [Unit]
 Description=Finance Platform scheduled backup (PostgreSQL + documents + off-site sync)
-Documentation=file:///opt/finance-ai-automation-platform/BACKUP_RECOVERY_IMPLEMENTATION.md
+Documentation=file:///opt/finance-ai-automation-platform/docs/reports/BACKUP_RECOVERY_IMPLEMENTATION.md
 After=docker.service
 Requires=docker.service
 OnFailure=finance-platform-backup-alert.service
