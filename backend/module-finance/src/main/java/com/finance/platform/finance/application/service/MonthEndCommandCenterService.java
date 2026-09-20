@@ -258,7 +258,7 @@ public class MonthEndCommandCenterService {
 		steps.add(new MonthEndProgressStepResponse(
 				"DOCUMENTS",
 				"Documents",
-				s.needsReview() > 0 || s.failedUnlinked() > 0 ? "!" : "✓"));
+				s.documentsNeedingReview() > 0 || s.failedUnlinkedDocuments() > 0 ? "!" : "✓"));
 		long drafts = s.draftExpenses() + s.draftIncome();
 		steps.add(new MonthEndProgressStepResponse(
 				"APPROVALS",
@@ -267,7 +267,7 @@ public class MonthEndCommandCenterService {
 		String bankIndicator;
 		if (s.bankAccounts() == 0) {
 			bankIndicator = "—";
-		} else if (s.unmatchedBank() > 0) {
+		} else if (s.unmatchedBankTransactions() > 0) {
 			bankIndicator = "!";
 		} else if (s.bankTransactions() == 0) {
 			bankIndicator = "!";
