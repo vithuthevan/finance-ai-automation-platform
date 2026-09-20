@@ -12,11 +12,15 @@ backend/**/build/
 
 ### Frontend ###
 frontend/node_modules/
+**/node_modules/
 frontend/dist/
 frontend/.angular/
+frontend/coverage/
 
 ### Secrets and local data ###
 .env
+.env.*
+!.env.example
 deploy/backup/backup.env
 data/
 uploads/
@@ -56,3 +60,20 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### QA artifacts (local runs — not versioned) ###
+qa-results-*
+qa-run-*
+
+### Playwright (e2e package) ###
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+e2e/playwright/.cache/
+
+### Reports (local readiness / audit artifacts — not versioned) ###
+docs/reports/
