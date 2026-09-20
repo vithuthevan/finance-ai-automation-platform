@@ -29,10 +29,8 @@ import { MoneyDisplayComponent } from '../../shared/ui/money-display.component';
   template: `
     <div class="page owner-home">
       <app-page-header
-        [title]="auth.isUploadOnly() ? 'Documents your accountant needs' : 'Your business hub'"
-        [subtitle]="auth.isUploadOnly()
-          ? 'Upload what your accountant requested — no bookkeeping menus required.'
-          : 'Send documents and see a simple summary of approved activity.'" />
+        [title]="ownerHeaderTitle"
+        [subtitle]="ownerHeaderSubtitle" />
 
       @if (clients.length > 1) {
         <div class="filter-bar">
@@ -267,6 +265,27 @@ export class OwnerPage implements OnInit {
 
   get openRequests(): DocumentRequestRow[] {
     return this.requests.filter((req) => req.status === 'OPEN' || req.status === 'UPLOADED');
+  }
+
+  get ownerHeaderTitle(): string {
+    const business = this.clients.find((c) => c.id === this.clientId)?.name;
+    const open = this.requests.filter((r) => r.status === 'OPEN').length;
+    if (open > 0) {
+      return business
+        ? `${business} — your accountant needs ${open} item${open === 1 ? '' : 's'}`
+        : `Your accountant needs ${open} item${open === 1 ? '' : 's'}`;
+    }
+    return this.auth.isUploadOnly() ? 'Documents your accountant needs' : 'Your business hub';
+  }
+
+  get ownerHeaderSubtitle(): string {
+    const open = this.requests.filter((r) => r.status === 'OPEN').length;
+    if (open > 0) {
+      return 'Upload each requested file below — no bookkeeping knowledge required.';
+    }
+    return this.auth.isUploadOnly()
+      ? 'Upload what your accountant requested — no bookkeeping menus required.'
+      : 'Send documents and see a simple summary of approved activity.';
   }
 
   get completedRequests(): DocumentRequestRow[] {

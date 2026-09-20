@@ -8,6 +8,10 @@ public record StaffWorkloadItemResponse(
 		long documentsToReview,
 		long pendingApprovals,
 		long bankUnresolved,
-		long closeReady
+		long closeReady,
+		int assignedClients,
+		int clientsReady,
+		int clientsBlocked,
+		int clientsAttention
 ) {
 }

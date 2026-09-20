@@ -13,7 +13,9 @@ export const routes: Routes = [
     loadComponent: () => import('./layout/shell.component').then(m => m.ShellComponent),
     children: [
       { path: 'dashboard', canActivate: [ledgerGuard], loadComponent: () => import('./features/dashboard/dashboard.page').then(m => m.DashboardPage) },
+      { path: 'month-end', canActivate: [roleGuard('ADMIN', 'ACCOUNTANT')], loadComponent: () => import('./features/month-end/month-end-command-center.page').then(m => m.MonthEndCommandCenterPage) },
       { path: 'work', canActivate: [roleGuard('ADMIN', 'ACCOUNTANT')], loadComponent: () => import('./features/work/work.page').then(m => m.WorkPage) },
+      { path: 'requests', canActivate: [roleGuard('ADMIN', 'ACCOUNTANT')], loadComponent: () => import('./features/requests/requests.page').then(m => m.RequestsPage) },
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.page').then(m => m.NotificationsPage) },
       { path: 'clients', canActivate: [roleGuard('ADMIN', 'ACCOUNTANT', 'AUDITOR')], loadComponent: () => import('./features/clients/clients.page').then(m => m.ClientsPage) },
       { path: 'documents', loadComponent: () => import('./features/documents/documents.page').then(m => m.DocumentsPage) },

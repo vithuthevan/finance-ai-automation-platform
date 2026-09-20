@@ -39,6 +39,17 @@ public interface DocumentRequestJpaRepository extends JpaRepository<DocumentRequ
 	@Query("""
 			select r from DocumentRequest r
 			join fetch r.client
+			where r.firmId = :firmId
+			  and (:status is null or r.status = :status)
+			""")
+	Page<DocumentRequest> searchByFirm(
+			@Param("firmId") UUID firmId,
+			@Param("status") DocumentRequest.RequestStatus status,
+			Pageable pageable);
+
+	@Query("""
+			select r from DocumentRequest r
+			join fetch r.client
 			where r.status in (com.finance.platform.finance.domain.model.DocumentRequest.RequestStatus.OPEN, com.finance.platform.finance.domain.model.DocumentRequest.RequestStatus.UPLOADED)
 			  and r.dueDate is not null
 			  and r.dueDate < :today

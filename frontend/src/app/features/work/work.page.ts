@@ -30,7 +30,9 @@ const WORK_TYPE_LABELS: Record<string, string> = {
   ],
   template: `
     <div class="page">
-      <app-page-header title="My work" subtitle="Prioritized queue across your client portfolio." />
+      <app-page-header title="My work" subtitle="Prioritized queue across your client portfolio.">
+        <a fpPageActions mat-stroked-button color="primary" routerLink="/app/month-end">Month-end command center</a>
+      </app-page-header>
       @if (summary) {
         <div class="grid-2">
           <mat-card class="metric-card link-card"><a routerLink="/app/work" [queryParams]="{type:'DOCUMENT_REVIEW'}"><div class="label">Documents to review</div><div class="value">{{ summary.documentsToReview }}</div></a></mat-card>

@@ -42,6 +42,7 @@ public class PracticeWorkQueueService {
 	private final PeriodCloseService periodCloseService;
 	private final BankTransactionJpaRepository bankTransactionRepository;
 	private final CloseReadinessService closeReadinessService;
+	private final MonthEndCommandCenterService monthEndCommandCenterService;
 
 	@Transactional(readOnly = true)
 	public WorkSummaryResponse summary() {
@@ -173,15 +174,25 @@ public class PracticeWorkQueueService {
 							.map(Client::getId)
 							.collect(Collectors.toSet());
 					if (assignedClients.isEmpty()) {
-						return new StaffWorkloadItemResponse(accountant.getId(), accountant.getFullName(), 0, 0, 0, 0);
+						return new StaffWorkloadItemResponse(
+								accountant.getId(), accountant.getFullName(), 0, 0, 0, 0, 0, 0, 0, 0);
 					}
+					var portfolio = monthEndCommandCenterService.commandCenter(
+							null, null, null, null, accountant.getId(), null);
+					int ready = portfolio.summary().ready();
+					int blocked = portfolio.summary().blocked();
+					int attention = portfolio.summary().needsAttention();
 					return new StaffWorkloadItemResponse(
 							accountant.getId(),
 							accountant.getFullName(),
 							workQueries.countDocumentsNeedingReview(firmId, assignedClients, false),
 							workQueries.countPendingApprovals(firmId, assignedClients, false),
 							workQueries.countBankUnresolved(firmId, assignedClients, false),
-							countReadyToClose(firmId, assignedClients, false)
+							countReadyToClose(firmId, assignedClients, false),
+							assignedClients.size(),
+							ready,
+							blocked,
+							attention
 					);
 				})
 				.toList();

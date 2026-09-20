@@ -420,6 +420,61 @@ def print_summary() -> None:
     )
 
 
+def ensure_extra_portfolio_clients(api: Api, categories: dict[str, str], accountant_id: str | None) -> None:
+    """Additional clients so Month-end Command Center shows a mixed portfolio."""
+    specs = [
+        ("Green Leaf Café (Pvt) Ltd", "accounts@greenleaf.lk"),
+        ("Ocean Traders Lanka", "finance@oceantraders.lk"),
+        ("ABC Engineering Services", "admin@abceng.lk"),
+        ("Harbor Retail Collective", "ops@harborretail.lk"),
+    ]
+    clients = api.get("/api/v1/clients") or []
+    if isinstance(clients, dict):
+        clients = clients.get("content", [])
+    for name, email in specs:
+        if find_by(clients, "name", name):
+            continue
+        created = api.post(
+            "/api/v1/clients",
+            {"name": name, "contactEmail": email, "businessRegNo": f"PV-{name[:3].upper()}-X"},
+        )
+        cid = created["id"]
+        if accountant_id:
+            api.put(f"/api/v1/clients/{cid}/primary-accountant", {"accountantUserId": accountant_id})
+        clients.append(created)
+        print(f"Portfolio client: {name}")
+
+    # Ocean Traders: one draft expense (approval blocker)
+    ocean = find_by(clients, "name", "Ocean Traders Lanka")
+    if ocean and categories.get("EXP-UTIL"):
+        try:
+            api.post(
+                f"/api/v1/clients/{ocean['id']}/expenses",
+                {
+                    "description": "Draft courier Sep",
+                    "amount": 4500,
+                    "transactionDate": "2026-09-12",
+                    "categoryId": categories["EXP-UTIL"],
+                },
+            )
+            print("Ocean Traders: draft expense seeded")
+        except RuntimeError:
+            pass
+
+    # ABC Engineering: bank account but no September import (attention warning)
+    abc = find_by(clients, "name", "ABC Engineering Services")
+    if abc:
+        accounts = api.get(f"/api/v1/clients/{abc['id']}/bank-accounts") or []
+        if isinstance(accounts, dict):
+            accounts = accounts.get("content", accounts)
+        if not accounts:
+            api.post(
+                f"/api/v1/clients/{abc['id']}/bank-accounts",
+                {"name": "Operating current", "currencyCode": "LKR", "accountNumberLast4": "1234"},
+            )
+            print("ABC Engineering: bank account seeded (import pending)")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seed Finance Platform demo data")
     parser.add_argument("--base-url", default="http://localhost:8080")
@@ -437,7 +492,8 @@ def main() -> int:
     ensure_firm_settings(api)
     categories = ensure_categories(api)
     client_id = ensure_client(api)
-    ensure_users(api, client_id, with_auditor=args.with_auditor)
+    user_ids = ensure_users(api, client_id, with_auditor=args.with_auditor)
+    ensure_extra_portfolio_clients(api, categories, user_ids.get(ACCOUNTANT_EMAIL))
     ensure_bank_account(api, client_id)
     ensure_august_history(api, client_id, categories)
     ensure_open_document_request(api, client_id)

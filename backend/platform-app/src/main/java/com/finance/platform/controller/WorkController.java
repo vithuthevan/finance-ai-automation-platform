@@ -5,6 +5,11 @@ import com.finance.platform.finance.application.dto.ClientPortfolioItemResponse;
 import com.finance.platform.finance.application.dto.StaffWorkloadItemResponse;
 import com.finance.platform.finance.application.dto.WorkItemResponse;
 import com.finance.platform.finance.application.dto.WorkSummaryResponse;
+import com.finance.platform.finance.application.dto.FirmOnboardingChecklistResponse;
+import com.finance.platform.finance.application.dto.MonthEndCommandCenterResponse;
+import com.finance.platform.finance.application.dto.MonthEndPortfolioState;
+import com.finance.platform.finance.application.service.FirmOnboardingService;
+import com.finance.platform.finance.application.service.MonthEndCommandCenterService;
 import com.finance.platform.finance.application.service.PracticeWorkQueueService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +30,8 @@ import java.util.UUID;
 public class WorkController {
 
 	private final PracticeWorkQueueService workQueueService;
+	private final MonthEndCommandCenterService monthEndCommandCenterService;
+	private final FirmOnboardingService firmOnboardingService;
 
 	@GetMapping("/summary")
 	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
@@ -59,5 +66,26 @@ public class WorkController {
 	@Operation(summary = "Operational workload by accountant")
 	public List<StaffWorkloadItemResponse> staffWorkload() {
 		return workQueueService.staffWorkload();
+	}
+
+	@GetMapping("/month-end-command-center")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
+	@Operation(summary = "Firm month-end portfolio readiness with actionable blockers")
+	public MonthEndCommandCenterResponse monthEndCommandCenter(
+			@RequestParam(required = false) Integer year,
+			@RequestParam(required = false) Integer month,
+			@RequestParam(required = false) String query,
+			@RequestParam(required = false) MonthEndPortfolioState state,
+			@RequestParam(required = false) UUID accountantUserId,
+			@RequestParam(required = false) UUID clientId
+	) {
+		return monthEndCommandCenterService.commandCenter(year, month, query, state, accountantUserId, clientId);
+	}
+
+	@GetMapping("/onboarding-checklist")
+	@PreAuthorize("hasRole('ADMIN')")
+	@Operation(summary = "New firm setup checklist progress")
+	public FirmOnboardingChecklistResponse onboardingChecklist() {
+		return firmOnboardingService.checklist();
 	}
 }

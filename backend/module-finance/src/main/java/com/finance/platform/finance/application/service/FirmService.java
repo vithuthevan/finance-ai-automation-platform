@@ -21,6 +21,7 @@ public class FirmService {
 
 	private final FirmJpaRepository firmRepository;
 	private final SubscriptionService subscriptionService;
+	private final DefaultCategoryPackService defaultCategoryPackService;
 	private final AuditLogger auditLogger;
 
 	@Transactional
@@ -37,6 +38,7 @@ public class FirmService {
 
 		Firm saved = firmRepository.save(firm);
 		subscriptionService.createDefaultForFirm(saved.getId());
+		defaultCategoryPackService.seedForFirm(saved.getId());
 		Map<String, Object> after = new LinkedHashMap<>();
 		after.put("name", saved.getName());
 		after.put("registrationNo", saved.getRegistrationNo());

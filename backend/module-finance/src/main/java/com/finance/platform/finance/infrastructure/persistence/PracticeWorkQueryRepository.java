@@ -165,7 +165,7 @@ public class PracticeWorkQueryRepository {
 			boolean overdue = dueDate != null && dueDate.isBefore(today);
 			String priority = overdue ? "HIGH" : "NORMAL";
 			return new WorkRow("DOCUMENT_REQUEST", priority, clientId, clientName, title, description,
-					resourceId, "/app/owner", dueDate, overdue, toInstant(row[6]), (UUID) row[7], null);
+					resourceId, "/app/requests?clientId=" + clientId, dueDate, overdue, toInstant(row[6]), (UUID) row[7], null);
 		}).toList();
 	}
 

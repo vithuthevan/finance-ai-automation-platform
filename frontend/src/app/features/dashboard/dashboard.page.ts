@@ -12,6 +12,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { money, monthStart, today } from '../reports/report-context.service';
 import { DashboardSummary, PracticeDashboard } from '../reports/report.models';
+import { MonthEndCommandCenter, OnboardingChecklist } from '../month-end/month-end.models';
 import { WorkSummary } from '../work/work.models';
 import { SubscriptionUsage } from '../admin/subscription.models';
 import { PageHeaderComponent } from '../../shared/ui/page-header.component';
@@ -29,12 +30,41 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
         subtitle="Welcome back — here’s a snapshot of your practice today.">
         <div fpPageActions class="toolbar-row dash-actions">
         @if (auth.hasRole('ADMIN', 'ACCOUNTANT')) {
-          <a mat-stroked-button color="primary" routerLink="/app/work">Open work queue</a>
+          <a mat-flat-button color="primary" routerLink="/app/month-end">Month-end command center</a>
+          <a mat-stroked-button routerLink="/app/work">Open work queue</a>
           <a mat-stroked-button routerLink="/app/reports">Report summary</a>
         }
         <div class="date-chip">{{ todayLabel }}</div>
         </div>
       </app-page-header>
+
+      @if (auth.hasRole('ADMIN', 'ACCOUNTANT') && commandCenter) {
+        <div class="card-block mecc-teaser">
+          <div class="toolbar-row">
+            <div>
+              <h2>{{ commandCenter.periodLabel }}</h2>
+              <p class="hint">Ready {{ commandCenter.summary.ready }} · Blocked {{ commandCenter.summary.blocked }} · Attention {{ commandCenter.summary.needsAttention }}</p>
+            </div>
+            <a mat-stroked-button routerLink="/app/month-end">View command center</a>
+          </div>
+        </div>
+      }
+
+      @if (auth.hasRole('ADMIN') && onboarding && onboarding.completedCount < onboarding.totalCount) {
+        <div class="card-block onboarding">
+          <h2>Welcome{{ onboarding.firmName ? (' to ' + onboarding.firmName) : '' }}</h2>
+          <p class="hint">Let's prepare your practice for the first client close.</p>
+          <ul class="onboard-steps">
+            @for (step of onboarding.steps; track step.code) {
+              <li [class.done]="step.completed">
+                <span>{{ step.completed ? '✓' : '○' }}</span>
+                <a [routerLink]="step.actionPath">{{ step.label }}</a>
+              </li>
+            }
+          </ul>
+          <p class="hint">{{ onboarding.completedCount }} / {{ onboarding.totalCount }} complete</p>
+        </div>
+      }
 
       @if (auth.hasRole('ADMIN', 'ACCOUNTANT') && workSummary) {
         <div class="hero-grid">
@@ -228,6 +258,12 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
       margin-top: 12px;
     }
 
+    .onboard-steps { list-style: none; padding: 0; margin: 12px 0; }
+    .onboard-steps li { display: flex; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+    .onboard-steps li.done { color: #047857; }
+    .onboard-steps a { color: var(--fp-orange); font-weight: 600; text-decoration: none; }
+    .mecc-teaser { border-left: 4px solid var(--fp-orange); }
+
     @media (max-width: 800px) {
       .hero-grid { grid-template-columns: 1fr; }
     }
@@ -255,6 +291,8 @@ export class DashboardPage implements OnInit {
 
   practice: PracticeDashboard | null = null;
   workSummary: WorkSummary | null = null;
+  commandCenter: MonthEndCommandCenter | null = null;
+  onboarding: OnboardingChecklist | null = null;
   clients: { id: string; name: string }[] = [];
   clientId = '';
   clientDash: DashboardSummary | null = null;
@@ -297,9 +335,17 @@ export class DashboardPage implements OnInit {
           }]
         };
       });
+      this.api.get<OnboardingChecklist>('/api/v1/work/onboarding-checklist').subscribe({
+        next: (ob) => this.onboarding = ob,
+        error: () => this.onboarding = null
+      });
     }
     if (this.auth.hasRole('ADMIN', 'ACCOUNTANT')) {
       this.api.get<PracticeDashboard>('/api/v1/reports/practice').subscribe((practice) => this.practice = practice);
+      this.api.get<MonthEndCommandCenter>('/api/v1/work/month-end-command-center').subscribe({
+        next: (cc) => this.commandCenter = cc,
+        error: () => this.commandCenter = null
+      });
       this.api.get<WorkSummary>('/api/v1/work/summary').subscribe((summary) => {
         this.workSummary = summary;
         this.workChartData = {

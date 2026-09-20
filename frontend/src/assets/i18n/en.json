@@ -1,7 +1,9 @@
 {
   "appName": "Finance Platform",
   "nav.dashboard": "Dashboard",
+  "nav.monthEnd": "Month-end",
   "nav.work": "My work",
+  "nav.requests": "Requests",
   "nav.clients": "Clients",
   "nav.documents": "Documents",
   "nav.myDocuments": "My documents",
