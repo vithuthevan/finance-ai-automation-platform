@@ -4,6 +4,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../shared/toast.service';
@@ -14,7 +15,7 @@ import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 @Component({
   standalone: true,
   imports: [
-    ReactiveFormsModule, MatTableModule, MatFormFieldModule, MatInputModule, MatButtonModule,
+    ReactiveFormsModule, RouterLink, MatTableModule, MatFormFieldModule, MatInputModule, MatButtonModule,
     PageHeaderComponent, StatusBadgeComponent, EmptyStateComponent
   ],
   template: `
@@ -54,6 +55,7 @@ import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
           </ng-container>
           <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let row">
+              <a mat-button [routerLink]="['/app/clients/monthly-evidence']" [queryParams]="{ clientId: row.id }">Evidence</a>
               @if (auth.hasRole('ADMIN')) {
                 <button mat-button (click)="toggle(row)" [disabled]="togglingId === row.id">
                   {{ togglingId === row.id ? 'Updating…' : (row.active ? 'Deactivate' : 'Activate') }}

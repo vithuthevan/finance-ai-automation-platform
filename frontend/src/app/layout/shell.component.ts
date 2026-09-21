@@ -563,8 +563,6 @@ export class ShellComponent implements OnInit {
       return [
         { path: '/app/owner', labelKey: 'nav.home', icon: 'home' },
         { path: '/app/documents', labelKey: 'nav.myDocuments', icon: 'folder' },
-        { path: '/app/expenses', labelKey: 'nav.expenses', icon: 'payments' },
-        { path: '/app/income', labelKey: 'nav.income', icon: 'trending_up' },
         { path: '/app/reports', labelKey: 'nav.summary', icon: 'insights' }
       ];
     }
@@ -574,6 +572,7 @@ export class ShellComponent implements OnInit {
       { path: '/app/documents', labelKey: 'nav.documents', icon: 'description' },
       { path: '/app/expenses', labelKey: 'nav.expenses', icon: 'payments' },
       { path: '/app/income', labelKey: 'nav.income', icon: 'trending_up' },
+      { path: '/app/ar', labelKey: 'nav.ar', icon: 'receipt_long' },
       { path: '/app/banking', labelKey: 'nav.banking', icon: 'account_balance' },
       { path: '/app/close', labelKey: 'nav.close', icon: 'task_alt' },
       { path: '/app/reports', labelKey: 'nav.reports', icon: 'insights' }
@@ -582,6 +581,7 @@ export class ShellComponent implements OnInit {
       items.splice(1, 0, { path: '/app/month-end', labelKey: 'nav.monthEnd', icon: 'calendar_month' });
       items.splice(2, 0, { path: '/app/work', labelKey: 'nav.work', icon: 'checklist' });
       items.splice(3, 0, { path: '/app/requests', labelKey: 'nav.requests', icon: 'assignment' });
+      items.splice(4, 0, { path: '/app/client-chase', labelKey: 'nav.clientChase', icon: 'notifications_active' });
     }
     if (this.auth.hasRole('ADMIN')) {
       items.push(

@@ -10,6 +10,8 @@
   "nav.expenses": "Expenses",
   "nav.income": "Income",
   "nav.banking": "Banking",
+  "nav.ar": "Invoicing & AR",
+  "nav.clientChase": "Client chase",
   "nav.close": "Close",
   "nav.reports": "Reports",
   "nav.summary": "Summary",

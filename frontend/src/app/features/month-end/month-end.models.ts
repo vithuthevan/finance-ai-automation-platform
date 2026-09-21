@@ -6,12 +6,16 @@ export interface CloseActionLink {
   query: Record<string, string>;
 }
 
+export type CloseResponsibility = 'CLIENT' | 'TEAM';
+
 export interface MonthEndBlocker {
   severity: 'BLOCKER' | 'WARNING' | 'INFO';
   code: string;
   message: string;
   count: number;
   actionHint: string;
+  responsibility: CloseResponsibility;
+  responsibilityLabel: string;
   action: CloseActionLink;
 }
 
@@ -34,6 +38,8 @@ export interface MonthEndClientRow {
   readyToClose: boolean;
   readinessPercent: number;
   overdueDocumentRequests: number;
+  waitingOnClientItems: number;
+  teamActionItems: number;
   primaryAccountantUserId: string | null;
   primaryAccountantName: string | null;
   progress: MonthEndProgressStep[];

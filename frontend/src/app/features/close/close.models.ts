@@ -4,6 +4,8 @@ export interface CloseFinding {
   message: string;
   count: number;
   actionHint: string;
+  responsibility?: 'CLIENT' | 'TEAM';
+  responsibilityLabel?: string;
 }
 
 export interface CloseChecklistItem {

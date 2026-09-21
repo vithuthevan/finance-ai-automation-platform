@@ -128,7 +128,7 @@ import { finalize } from 'rxjs';
 
       }
 
-      @if (auth.hasRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')) {
+      @if (auth.canWriteLedger()) {
 
         <section class="card-block">
 

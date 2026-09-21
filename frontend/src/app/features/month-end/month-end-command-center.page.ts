@@ -33,6 +33,18 @@ import { stateBadgeStatus } from './close-action.util';
           <input matInput [(ngModel)]="query" (keyup.enter)="load()" placeholder="Business name" />
         </mat-form-field>
         <mat-form-field appearance="outline">
+          <mat-label>Year</mat-label>
+          <input matInput type="number" [(ngModel)]="year" (keyup.enter)="load()" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Month</mat-label>
+          <mat-select [(ngModel)]="month" (selectionChange)="load()">
+            @for (m of months; track m.value) {
+              <mat-option [value]="m.value">{{ m.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
           <mat-label>Status</mat-label>
           <mat-select [(ngModel)]="stateFilter" (selectionChange)="load()">
             <mat-option value="">All</mat-option>
@@ -40,6 +52,14 @@ import { stateBadgeStatus } from './close-action.util';
             <mat-option value="ATTENTION">Needs attention</mat-option>
             <mat-option value="BLOCKED">Blocked</mat-option>
             <mat-option value="CLOSED">Closed</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Focus</mat-label>
+          <mat-select [(ngModel)]="focusFilter" (selectionChange)="load()">
+            <mat-option value="">All</mat-option>
+            <mat-option value="WAITING_ON_CLIENT">Waiting on client</mat-option>
+            <mat-option value="TEAM_ACTION">Action required from team</mat-option>
           </mat-select>
         </mat-form-field>
         <button mat-stroked-button type="button" (click)="load()" [disabled]="loading">Refresh</button>
@@ -96,14 +116,32 @@ import { stateBadgeStatus } from './close-action.util';
                   }
                 </div>
                 @if (row.blockers.length) {
-                  <ul class="blockers">
-                    @for (b of row.blockers; track b.code + b.message) {
-                      <li>
-                        <span>{{ b.message }}</span>
-                        <button mat-button type="button" (click)="openBlocker(b)">{{ b.action.label }}</button>
-                      </li>
-                    }
-                  </ul>
+                  @if (clientBlockers(row).length) {
+                    <div class="resp-group">
+                      <div class="resp-label">Waiting on client</div>
+                      <ul class="blockers">
+                        @for (b of clientBlockers(row); track b.code + b.message) {
+                          <li>
+                            <span>{{ b.message }}</span>
+                            <button mat-button type="button" (click)="openBlocker(b)">{{ b.action.label }}</button>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  @if (teamBlockers(row).length) {
+                    <div class="resp-group">
+                      <div class="resp-label">Your team</div>
+                      <ul class="blockers">
+                        @for (b of teamBlockers(row); track b.code + b.message) {
+                          <li>
+                            <span>{{ b.message }}</span>
+                            <button mat-button type="button" (click)="openBlocker(b)">{{ b.action.label }}</button>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  }
                 } @else if (row.state === 'READY') {
                   <p class="hint ok">All checks passed — review and close when satisfied.</p>
                 }
@@ -133,6 +171,8 @@ import { stateBadgeStatus } from './close-action.util';
     .meta { font-size: 13px; color: var(--fp-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .progress-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; font-size: 12px; font-weight: 600; color: var(--fp-text-secondary); }
     .progress-step { padding: 4px 8px; background: var(--fp-background); border-radius: 6px; }
+    .resp-group { margin-top: 8px; }
+    .resp-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fp-muted); margin-bottom: 4px; }
     .blockers { margin: 0; padding-left: 18px; }
     .blockers li { margin-bottom: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .hint.ok { margin: 8px 0 0; color: #047857; font-weight: 600; }
@@ -149,18 +189,41 @@ export class MonthEndCommandCenterPage implements OnInit {
   loading = false;
   query = '';
   stateFilter = '';
+  focusFilter = '';
+  year = new Date().getFullYear();
+  month = new Date().getMonth() + 1;
+  months = [
+    { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
+    { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
+    { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
+    { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' }
+  ];
 
   ngOnInit(): void {
     this.load();
   }
 
+  clientBlockers(row: MonthEndClientRow) {
+    return row.blockers.filter((b) => b.responsibility === 'CLIENT');
+  }
+
+  teamBlockers(row: MonthEndClientRow) {
+    return row.blockers.filter((b) => b.responsibility === 'TEAM');
+  }
+
   load(): void {
-    const params: Record<string, string> = {};
+    const params: Record<string, string> = {
+      year: String(this.year),
+      month: String(this.month)
+    };
     if (this.query.trim()) {
       params['query'] = this.query.trim();
     }
     if (this.stateFilter) {
       params['state'] = this.stateFilter;
+    }
+    if (this.focusFilter) {
+      params['focus'] = this.focusFilter;
     }
     this.loading = true;
     this.api.get<MonthEndCommandCenter>('/api/v1/work/month-end-command-center', params).pipe(

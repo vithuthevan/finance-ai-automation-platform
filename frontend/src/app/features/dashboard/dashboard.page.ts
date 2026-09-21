@@ -66,6 +66,24 @@ import { PageHeaderComponent } from '../../shared/ui/page-header.component';
         </div>
       }
 
+      @if (auth.hasRole('ADMIN', 'ACCOUNTANT') && practiceToday) {
+        <div class="card-block mecc-teaser">
+          <div class="toolbar-row">
+            <div>
+              <h2>Today</h2>
+              <p class="hint">
+                {{ practiceToday.clientsNeedAttention }} need attention ·
+                {{ practiceToday.readyToClose }} ready to close ·
+                {{ practiceToday.blockedByMissingDocuments }} blocked by documents ·
+                {{ practiceToday.unreconciledTransactions }} unreconciled ·
+                {{ practiceToday.overdueInvoices }} overdue invoices
+              </p>
+            </div>
+            <a mat-stroked-button routerLink="/app/work">What should I work on next?</a>
+          </div>
+        </div>
+      }
+
       @if (auth.hasRole('ADMIN', 'ACCOUNTANT') && workSummary) {
         <div class="hero-grid">
           <mat-card class="metric-card hero-card">
@@ -291,6 +309,14 @@ export class DashboardPage implements OnInit {
 
   practice: PracticeDashboard | null = null;
   workSummary: WorkSummary | null = null;
+  practiceToday: {
+    clientsNeedAttention: number;
+    readyToClose: number;
+    blockedByMissingDocuments: number;
+    unreconciledTransactions: number;
+    aiReviewsPending: number;
+    overdueInvoices: number;
+  } | null = null;
   commandCenter: MonthEndCommandCenter | null = null;
   onboarding: OnboardingChecklist | null = null;
   clients: { id: string; name: string }[] = [];
@@ -345,6 +371,10 @@ export class DashboardPage implements OnInit {
       this.api.get<MonthEndCommandCenter>('/api/v1/work/month-end-command-center').subscribe({
         next: (cc) => this.commandCenter = cc,
         error: () => this.commandCenter = null
+      });
+      this.api.get<typeof this.practiceToday>('/api/v1/practice/today').subscribe({
+        next: (today) => this.practiceToday = today,
+        error: () => this.practiceToday = null
       });
       this.api.get<WorkSummary>('/api/v1/work/summary').subscribe((summary) => {
         this.workSummary = summary;

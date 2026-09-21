@@ -50,6 +50,7 @@ export interface MatchSuggestion {
   score: number;
   confidence: string;
   status: string;
+  scoreComponents?: { label: string; points: number }[];
 }
 
 export interface BankTransactionRow {

@@ -206,6 +206,50 @@ import { currencyCodeValidators, timezoneValidator } from '../../shared/form.val
 
         </mat-tab>
 
+        <mat-tab label="Client chase">
+
+          <section class="card-block" [formGroup]="chaseForm">
+
+            <mat-slide-toggle formControlName="enabled">Client chase enabled</mat-slide-toggle>
+
+            <p class="hint">Reminder days after a run starts (comma-separated). Example: 0, 3, 7, 14</p>
+
+            <mat-form-field class="full-width">
+
+              <mat-label>Reminder cadence (days)</mat-label>
+
+              <input matInput formControlName="cadenceDaysText">
+
+              @if (chaseForm.controls.cadenceDaysText.touched && chaseForm.controls.cadenceDaysText.invalid) {
+
+                <mat-error>Enter one or more non-negative days, comma-separated</mat-error>
+
+              }
+
+            </mat-form-field>
+
+            <div class="form-actions">
+
+              <button mat-stroked-button type="button" [disabled]="chaseLoading" (click)="resetChasePolicy()">Reset</button>
+
+              <button mat-flat-button color="primary" type="button"
+
+                [disabled]="chaseForm.invalid || chaseSaving || chaseLoading"
+
+                (click)="saveChasePolicy()">
+
+                {{ chaseSaving ? 'Saving…' : 'Save chase policy' }}
+
+              </button>
+
+            </div>
+
+          </section>
+
+        </mat-tab>
+
+
+
         <mat-tab label="Subscription">
 
           <div class="card-block">
@@ -237,6 +281,20 @@ export class FirmPage implements OnInit {
   metrics: any;
 
   saving = false;
+
+  chaseLoading = false;
+
+  chaseSaving = false;
+
+  private chasePolicySnapshot = { enabled: true, cadenceDaysText: '0, 3, 7, 10' };
+
+  chaseForm = this.fb.nonNullable.group({
+
+    enabled: [true],
+
+    cadenceDaysText: ['0, 3, 7, 10', Validators.required]
+
+  });
 
   form = this.fb.nonNullable.group({
 
@@ -277,6 +335,112 @@ export class FirmPage implements OnInit {
       error: () => this.metrics = null
 
     });
+
+    this.loadChasePolicy();
+
+  }
+
+
+
+  loadChasePolicy(): void {
+
+    this.chaseLoading = true;
+
+    this.api.get<{ active: boolean; cadenceDays: number[] }>('/api/v1/client-chase/policy').subscribe({
+
+      next: (policy) => {
+
+        const text = (policy.cadenceDays ?? []).join(', ');
+
+        this.chasePolicySnapshot = { enabled: policy.active, cadenceDaysText: text };
+
+        this.chaseForm.patchValue({ enabled: policy.active, cadenceDaysText: text });
+
+        this.chaseLoading = false;
+
+      },
+
+      error: () => {
+
+        this.chaseLoading = false;
+
+        this.toast.error('Could not load client chase policy.');
+
+      }
+
+    });
+
+  }
+
+
+
+  resetChasePolicy(): void {
+
+    this.chaseForm.patchValue(this.chasePolicySnapshot);
+
+  }
+
+
+
+  saveChasePolicy(): void {
+
+    this.chaseForm.markAllAsTouched();
+
+    const cadenceDays = this.parseCadenceDays(this.chaseForm.controls.cadenceDaysText.value);
+
+    if (!cadenceDays.length) {
+
+      this.chaseForm.controls.cadenceDaysText.setErrors({ invalid: true });
+
+      return;
+
+    }
+
+    this.chaseSaving = true;
+
+    this.api.put('/api/v1/client-chase/policy', {
+
+      enabled: this.chaseForm.controls.enabled.value,
+
+      cadenceDays
+
+    }).subscribe({
+
+      next: () => {
+
+        this.chasePolicySnapshot = this.chaseForm.getRawValue();
+
+        this.toast.success('Client chase policy saved.');
+
+        this.chaseSaving = false;
+
+      },
+
+      error: () => {
+
+        this.toast.error('Could not save client chase policy.');
+
+        this.chaseSaving = false;
+
+      }
+
+    });
+
+  }
+
+
+
+  private parseCadenceDays(raw: string): number[] {
+
+    return raw.split(',')
+
+      .map(part => part.trim())
+
+      .filter(part => part.length > 0)
+
+      .map(part => Number(part))
+
+      .filter(n => Number.isFinite(n) && n >= 0);
 
   }
 

@@ -70,6 +70,9 @@ import { StatusBadgeComponent } from '../../shared/ui/status-badge.component';
             <ul class="readiness-list">
               @for (row of readiness.blockers; track row.code) {
                 <li class="readiness-item readiness-item--fail">
+                  @if (row.responsibilityLabel) {
+                    <span class="hint">{{ row.responsibilityLabel }} · </span>
+                  }
                   <a [routerLink]="blockerLink(row)" [queryParams]="blockerQuery(row)">{{ row.message }}</a>
                 </li>
               }

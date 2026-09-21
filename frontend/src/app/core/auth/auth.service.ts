@@ -109,6 +109,10 @@ export class AuthService {
     return this.hasRole('ADMIN', 'ACCOUNTANT');
   }
 
+  canWriteLedger(): boolean {
+    return this.hasRole('ADMIN', 'ACCOUNTANT') && !this.hasRole('AUDITOR');
+  }
+
   canUploadDocuments(): boolean {
     return this.hasRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER') && !this.hasRole('AUDITOR');
   }

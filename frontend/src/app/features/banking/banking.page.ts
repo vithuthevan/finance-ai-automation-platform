@@ -277,7 +277,19 @@ import {
                 <p class="hint">Suggested match:</p>
                 @for (s of row.suggestions; track s.ledgerId) {
                   <div class="suggestion-row">
-                    <span class="text-ellipsis" [title]="suggestionLabel(s)">{{ suggestionLabel(s) }}</span>
+                    <div>
+                      <span class="text-ellipsis" [title]="suggestionLabel(s)">{{ suggestionLabel(s) }}</span>
+                      @if (s.scoreComponents?.length) {
+                        <details class="score-breakdown">
+                          <summary>Confidence: {{ s.score }} ({{ s.confidence }})</summary>
+                          <ul>
+                            @for (c of s.scoreComponents; track c.label) {
+                              <li>{{ c.label }} +{{ c.points }}</li>
+                            }
+                          </ul>
+                        </details>
+                      }
+                    </div>
                     @if (canOperate && row.matchStatus !== 'MATCHED' && row.matchStatus !== 'IGNORED') {
                       <div class="form-actions">
                         <button mat-flat-button color="primary" type="button" (click)="confirm(row, s)">Confirm</button>
@@ -588,10 +600,27 @@ export class BankingPage implements OnInit {
   }
 
   suggestionLabel(s: MatchSuggestion): string {
-    return `${s.ledgerType} · ${s.ledgerLabel} · ${s.amount} · ${s.transactionDate} (${s.confidence})`;
+    return `${s.ledgerType} · ${s.ledgerLabel} · ${s.amount} · score ${s.score} (${s.confidence})`;
   }
 
   confirm(row: BankTransactionRow, suggestion: MatchSuggestion): void {
+    if (suggestion.ledgerType === 'INVOICE') {
+      const bankAmount = row.credit ?? row.debit ?? 0;
+      this.api.get<{ customerId: string; outstanding: number }>(`/api/v1/ar/invoices/${suggestion.ledgerId}`).subscribe({
+        next: (inv) => {
+          const allocAmount = Math.min(inv.outstanding, bankAmount);
+          this.api.post(`/api/v1/clients/${this.clientId}/bank/transactions/${row.id}/confirm-invoice-payment`, {
+            customerId: inv.customerId,
+            allocations: [{ invoiceId: suggestion.ledgerId, amount: allocAmount }]
+          }).subscribe({
+            next: () => { this.toast.success('Bank payment applied to invoice'); this.reloadReconciliation(); },
+            error: (err) => this.toast.error(err.error?.detail || err.error?.message || 'Confirm failed')
+          });
+        },
+        error: (err) => this.toast.error(err.error?.detail || 'Invoice lookup failed')
+      });
+      return;
+    }
     const body = suggestion.ledgerType === 'EXPENSE'
       ? { expenseId: suggestion.ledgerId }
       : { incomeId: suggestion.ledgerId };
