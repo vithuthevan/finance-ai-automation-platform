@@ -58,8 +58,9 @@ services:
       APP_AUTH_COOKIE_SECURE: ${APP_AUTH_COOKIE_SECURE:-true}
       APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL: ${APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:-}
       APP_FRONTEND_BASE_URL: ${APP_FRONTEND_BASE_URL}
-    ports:
-      - "8080:8080"
+    # API is reached via frontend Nginx (/api → backend:8080). Do not publish 8080 publicly.
+    expose:
+      - "8080"
     volumes:
       - finance_uploads:/data/uploads
     healthcheck:
@@ -80,7 +81,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "4200:80"
+      - "127.0.0.1:4200:80"
     restart: unless-stopped
 
 volumes:

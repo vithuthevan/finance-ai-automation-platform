@@ -106,7 +106,8 @@ Set `apiBaseUrl` to `https://api.example.com/api/v1` and `APP_CORS_ALLOWED_ORIGI
 The frontend is **not** copied into `src/main/resources/static`. Backend and frontend deploy independently.
 
 Details: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).  
-**Single VPS (Docker Compose + HTTPS):** [docs/VPS_HOSTING.md](docs/VPS_HOSTING.md).
+**Single VPS (Docker Compose + HTTPS):** [docs/VPS_HOSTING.md](docs/VPS_HOSTING.md).  
+**Oracle Cloud (OCI):** [docs/ORACLE_CLOUD_HOSTING.md](docs/ORACLE_CLOUD_HOSTING.md).
 
 ## Roles
 
