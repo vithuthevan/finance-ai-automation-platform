@@ -11,6 +11,7 @@ public final class SecurityPaths {
 	public static final String AUTH_RESET = API_V1 + "/auth/reset-password";
 	public static final String AUTH_LOGOUT = API_V1 + "/auth/logout";
 	public static final String AUTH_VERIFY_EMAIL = API_V1 + "/auth/verify-email";
+	public static final String AUTH_RESEND_VERIFICATION = API_V1 + "/auth/resend-verification";
 
 	public static final String EXPENSES = API_V1 + "/clients/*/expenses/**";
 

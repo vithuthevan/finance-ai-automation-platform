@@ -224,6 +224,28 @@ class GoldenPathInvariantIntegrationTest extends AbstractPostgresIntegrationTest
 	}
 
 	@Test
+	void businessOwnerCannotCreateExpense() throws Exception {
+		ClientResponse client = createClient("Owner Create Client");
+		CategoryResponse category = createCategory("OWNER-CREATE", "Owner Create Expense", "EXPENSE");
+		String ownerToken = createStaffAndLogin("BUSINESS_OWNER", List.of(client.id()));
+
+		mockMvc.perform(post("/api/v1/clients/" + client.id() + "/expenses")
+						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(ownerToken))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
+								LocalDate.now(),
+								category.id(),
+								new BigDecimal("100.00"),
+								"LKR",
+								"Owner Vendor",
+								"Blocked",
+								null,
+								null
+						))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
 	void voidedExpenseCannotBeApprovedAgain() throws Exception {
 		ClientResponse client = createClient("Void Client");
 		CategoryResponse category = createCategory("VOID-EXP", "Void Expense", "EXPENSE");

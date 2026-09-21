@@ -39,8 +39,8 @@ public class OpenDocumentRequestCheck implements CloseCheck {
 		return List.of(CloseFinding.blocker(
 				"OPEN_DOCUMENT_REQUESTS",
 				open == 1
-						? "1 missing-document request is still open."
-						: open + " missing-document requests are still open.",
+						? "Waiting on client: 1 requested document outstanding."
+						: "Waiting on client: " + open + " requested documents outstanding.",
 				(int) open,
 				"DOCUMENT_REQUESTS"));
 	}

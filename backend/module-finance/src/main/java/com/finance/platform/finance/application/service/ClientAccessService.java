@@ -46,7 +46,11 @@ public class ClientAccessService {
 		return client;
 	}
 
-	public Client requireWriteAccess(UUID clientId) {
+	/**
+	 * Accounting and firm-operational writes (ledger, bank, close, document review).
+	 * Not for client-owner document uploads — use {@link #requireUploadAccess}.
+	 */
+	public Client requireLedgerWriteAccess(UUID clientId) {
 		Client client = requireReadAccess(clientId);
 		subscriptionQuotaGuard.assertCanWrite(client.getFirmId());
 		assertClientActive(client);
@@ -58,7 +62,14 @@ public class ClientAccessService {
 		if (role == Role.RoleCode.AUDITOR) {
 			throw new AccessDeniedException("Auditors cannot modify bookkeeping records");
 		}
+		if (role == Role.RoleCode.BUSINESS_OWNER) {
+			throw new AccessDeniedException("Business owners cannot modify ledger records");
+		}
 		return client;
+	}
+
+	public Client requireWriteAccess(UUID clientId) {
+		return requireLedgerWriteAccess(clientId);
 	}
 
 	public Client requireUploadAccess(UUID clientId) {

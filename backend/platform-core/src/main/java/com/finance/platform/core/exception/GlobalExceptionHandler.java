@@ -7,8 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
@@ -90,13 +92,16 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(RateLimitedException.class)
-	public ProblemDetail handleRateLimited(RateLimitedException ex) {
+	public ResponseEntity<ProblemDetail> handleRateLimited(RateLimitedException ex) {
 		ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.TOO_MANY_REQUESTS);
 		detail.setTitle("Too Many Requests");
 		detail.setDetail(ex.getMessage());
 		detail.setProperty("errorCode", ex.getErrorCode());
+		detail.setProperty("retryAfterSeconds", ex.retryAfterSeconds());
 		attachReferenceId(detail);
-		return detail;
+		HttpHeaders headers = new HttpHeaders();
+		headers.add(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
+		return new ResponseEntity<>(detail, headers, HttpStatus.TOO_MANY_REQUESTS);
 	}
 
 	@ExceptionHandler(BusinessException.class)

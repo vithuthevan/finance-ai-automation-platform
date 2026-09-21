@@ -1,14 +1,20 @@
 package com.finance.platform.finance.application.service;
 
+import com.finance.platform.finance.application.dto.MatchScoreComponentResponse;
 import com.finance.platform.finance.application.dto.MatchSuggestionResponse;
+import com.finance.platform.finance.application.service.invoicing.InvoiceSettlementService;
 import com.finance.platform.finance.domain.model.BankTransaction;
 import com.finance.platform.finance.domain.model.Expense;
 import com.finance.platform.finance.domain.model.Income;
 import com.finance.platform.finance.domain.model.ReconciliationMatch;
 import com.finance.platform.finance.domain.model.TransactionStatus;
+import com.finance.platform.finance.domain.model.invoicing.ArCustomer;
+import com.finance.platform.finance.domain.model.invoicing.SalesInvoice;
+import com.finance.platform.finance.infrastructure.persistence.ArCustomerJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ExpenseJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.IncomeJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ReconciliationMatchJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.SalesInvoiceJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,19 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/**
- * Deterministic reconciliation scoring (no AI).
- * <p>
- * Score factors (documented):
- * <ul>
- *   <li>Exact amount match: +50</li>
- *   <li>Same calendar day: +25</li>
- *   <li>Within 3 days: +15</li>
- *   <li>Reference token overlap: up to +15</li>
- *   <li>Description/vendor overlap: up to +10</li>
- * </ul>
- * Confidence: HIGH &gt;= 70, MEDIUM &gt;= 45, LOW otherwise.
- */
 @Service
 @RequiredArgsConstructor
 public class ReconciliationSuggestionService {
@@ -43,6 +36,9 @@ public class ReconciliationSuggestionService {
 	private final ExpenseJpaRepository expenseRepository;
 	private final IncomeJpaRepository incomeRepository;
 	private final ReconciliationMatchJpaRepository matchRepository;
+	private final SalesInvoiceJpaRepository salesInvoiceRepository;
+	private final ArCustomerJpaRepository arCustomerRepository;
+	private final InvoiceSettlementService invoiceSettlementService;
 
 	public List<MatchSuggestionResponse> suggest(BankTransaction bank) {
 		UUID clientId = bank.getClient().getId();
@@ -59,26 +55,54 @@ public class ReconciliationSuggestionService {
 				if (matchRepository.isLedgerEntryMatched(expense.getId(), null)) {
 					continue;
 				}
-				int score = score(bank, amount, expense.getAmount(), expense.getTransactionDate(),
+				ScoreBreakdown breakdown = scoreLedger(
+						bank, amount, expense.getAmount(), expense.getTransactionDate(),
 						expense.getReferenceNo(), expense.getVendorName(), expense.getDescription());
-				if (score > 0) {
+				if (breakdown.score() > 0) {
 					candidates.add(new ScoredCandidate("EXPENSE", expense.getId(),
 							label(expense.getVendorName(), expense.getDescription()),
-							expense.getAmount(), expense.getTransactionDate(), expense.getDescription(), score));
+							expense.getAmount(), expense.getTransactionDate(), expense.getDescription(),
+							breakdown.score(), breakdown.components()));
 				}
 			}
 		} else {
+			for (ArCustomer customer : arCustomerRepository.findByFirmIdAndActiveTrueOrderByNameAsc(bank.getFirmId())) {
+				if (customer.getClientId() == null || !customer.getClientId().equals(clientId)) {
+					continue;
+				}
+				for (SalesInvoice invoice : salesInvoiceRepository.findByFirmIdOrderByCreatedAtDesc(bank.getFirmId())) {
+					if (!invoice.getCustomerId().equals(customer.getId())
+							|| invoice.getStatus() != SalesInvoice.DocumentStatus.ISSUED) {
+						continue;
+					}
+					BigDecimal outstanding = invoiceSettlementService.outstanding(invoice);
+					if (outstanding.signum() <= 0) {
+						continue;
+					}
+					ScoreBreakdown breakdown = scoreInvoice(bank, amount, outstanding, invoice);
+					if (breakdown.score() > 0) {
+						candidates.add(new ScoredCandidate("INVOICE", invoice.getId(),
+								invoice.getInvoiceNumber(),
+								outstanding,
+								invoice.getIssueDate(),
+								"Sales invoice " + invoice.getInvoiceNumber(),
+								breakdown.score(), breakdown.components()));
+					}
+				}
+			}
 			for (Income income : incomeRepository.findByClientIdAndStatusAndTransactionDateBetween(
 					clientId, TransactionStatus.APPROVED, from, to)) {
 				if (matchRepository.isLedgerEntryMatched(null, income.getId())) {
 					continue;
 				}
-				int score = score(bank, amount, income.getAmount(), income.getTransactionDate(),
+				ScoreBreakdown breakdown = scoreLedger(
+						bank, amount, income.getAmount(), income.getTransactionDate(),
 						income.getReferenceNo(), income.getCustomerName(), income.getDescription());
-				if (score > 0) {
+				if (breakdown.score() > 0) {
 					candidates.add(new ScoredCandidate("INCOME", income.getId(),
 							label(income.getCustomerName(), income.getDescription()),
-							income.getAmount(), income.getTransactionDate(), income.getDescription(), score));
+							income.getAmount(), income.getTransactionDate(), income.getDescription(),
+							breakdown.score(), breakdown.components()));
 				}
 			}
 		}
@@ -95,7 +119,8 @@ public class ReconciliationSuggestionService {
 						candidate.description(),
 						candidate.score(),
 						confidence(candidate.score()),
-						ReconciliationMatch.MatchStatus.SUGGESTED))
+						ReconciliationMatch.MatchStatus.SUGGESTED,
+						candidate.components()))
 				.toList();
 	}
 
@@ -120,7 +145,35 @@ public class ReconciliationSuggestionService {
 		return matchRepository.save(match);
 	}
 
-	private static int score(
+	private static ScoreBreakdown scoreInvoice(
+			BankTransaction bank,
+			BigDecimal bankAmount,
+			BigDecimal outstanding,
+			SalesInvoice invoice
+	) {
+		List<MatchScoreComponentResponse> components = new ArrayList<>();
+		if (outstanding.compareTo(bankAmount) != 0) {
+			return new ScoreBreakdown(0, List.of());
+		}
+		components.add(new MatchScoreComponentResponse("Exact amount", 50));
+		int score = 50;
+		String ref = bank.getReferenceNo() == null ? "" : bank.getReferenceNo().toUpperCase(Locale.ROOT);
+		String invoiceNo = invoice.getInvoiceNumber().toUpperCase(Locale.ROOT);
+		if (!ref.isBlank() && ref.contains(invoiceNo)) {
+			components.add(new MatchScoreComponentResponse("Invoice reference", 30));
+			score += 30;
+		}
+		if (invoice.getIssueDate() != null) {
+			long dayDiff = Math.abs(ChronoUnit.DAYS.between(bank.getTxnDate(), invoice.getIssueDate()));
+			if (dayDiff <= 7) {
+				components.add(new MatchScoreComponentResponse("Date proximity", 8));
+				score += 8;
+			}
+		}
+		return new ScoreBreakdown(score, components);
+	}
+
+	private static ScoreBreakdown scoreLedger(
 			BankTransaction bank,
 			BigDecimal bankAmount,
 			BigDecimal ledgerAmount,
@@ -130,18 +183,30 @@ public class ReconciliationSuggestionService {
 			String ledgerDescription
 	) {
 		if (ledgerAmount == null || ledgerAmount.compareTo(bankAmount) != 0) {
-			return 0;
+			return new ScoreBreakdown(0, List.of());
 		}
+		List<MatchScoreComponentResponse> components = new ArrayList<>();
+		components.add(new MatchScoreComponentResponse("Exact amount", 50));
 		int score = 50;
 		long dayDiff = Math.abs(ChronoUnit.DAYS.between(bank.getTxnDate(), ledgerDate));
 		if (dayDiff == 0) {
+			components.add(new MatchScoreComponentResponse("Same calendar day", 25));
 			score += 25;
 		} else if (dayDiff <= 3) {
+			components.add(new MatchScoreComponentResponse("Date within 3 days", 15));
 			score += 15;
 		}
-		score += referenceOverlap(bank.getReferenceNo(), ledgerReference);
-		score += textOverlap(bank.getDescription(), ledgerParty, ledgerDescription);
-		return score;
+		int refScore = referenceOverlap(bank.getReferenceNo(), ledgerReference);
+		if (refScore > 0) {
+			components.add(new MatchScoreComponentResponse("Reference overlap", refScore));
+			score += refScore;
+		}
+		int textScore = textOverlap(bank.getDescription(), ledgerParty, ledgerDescription);
+		if (textScore > 0) {
+			components.add(new MatchScoreComponentResponse("Description match", textScore));
+			score += textScore;
+		}
+		return new ScoreBreakdown(score, components);
 	}
 
 	private static int referenceOverlap(String bankRef, String ledgerRef) {
@@ -197,6 +262,9 @@ public class ReconciliationSuggestionService {
 		return "LOW";
 	}
 
+	private record ScoreBreakdown(int score, List<MatchScoreComponentResponse> components) {
+	}
+
 	private record ScoredCandidate(
 			String ledgerType,
 			UUID ledgerId,
@@ -204,7 +272,8 @@ public class ReconciliationSuggestionService {
 			BigDecimal amount,
 			LocalDate transactionDate,
 			String description,
-			int score
+			int score,
+			List<MatchScoreComponentResponse> components
 	) {
 	}
 }

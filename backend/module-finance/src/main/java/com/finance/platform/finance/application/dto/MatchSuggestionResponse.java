@@ -4,6 +4,7 @@ import com.finance.platform.finance.domain.model.ReconciliationMatch;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public record MatchSuggestionResponse(
@@ -16,6 +17,7 @@ public record MatchSuggestionResponse(
 		String description,
 		int score,
 		String confidence,
-		ReconciliationMatch.MatchStatus status
+		ReconciliationMatch.MatchStatus status,
+		List<MatchScoreComponentResponse> scoreComponents
 ) {
 }

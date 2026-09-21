@@ -57,7 +57,7 @@ public class IncomeController {
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
 	public IncomeResponse create(
 			@PathVariable UUID clientId,
 			@Valid @RequestBody IncomeRequest request
@@ -66,7 +66,7 @@ public class IncomeController {
 	}
 
 	@PutMapping("/{incomeId}")
-	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
 	public IncomeResponse update(
 			@PathVariable UUID clientId,
 			@PathVariable UUID incomeId,
@@ -77,7 +77,7 @@ public class IncomeController {
 
 	@DeleteMapping("/{incomeId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
 	public void delete(@PathVariable UUID clientId, @PathVariable UUID incomeId) {
 		incomeService.delete(clientId, incomeId);
 	}

@@ -7,4 +7,5 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'com.fasterxml.jackson.core:jackson-databind'
 	implementation 'software.amazon.awssdk:s3:2.31.78'
+	implementation 'io.micrometer:micrometer-core'
 }

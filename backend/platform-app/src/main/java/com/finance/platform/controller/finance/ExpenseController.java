@@ -58,7 +58,7 @@ public class ExpenseController {
 
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
-	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
 	public ExpenseResponse create(
 			@PathVariable UUID clientId,
 			@Valid @RequestBody CreateExpenseRequest request
@@ -67,7 +67,7 @@ public class ExpenseController {
 	}
 
 	@PutMapping("/{expenseId}")
-	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
 	public ExpenseResponse update(
 			@PathVariable UUID clientId,
 			@PathVariable UUID expenseId,
@@ -78,7 +78,7 @@ public class ExpenseController {
 
 	@DeleteMapping("/{expenseId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'BUSINESS_OWNER')")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
 	public void delete(@PathVariable UUID clientId, @PathVariable UUID expenseId) {
 		expenseService.delete(clientId, expenseId);
 	}

@@ -12,6 +12,7 @@ import com.finance.platform.core.audit.AuditResourceType;
 import com.finance.platform.core.dto.PageRequests;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.event.DomainEventPublisher;
+import com.finance.platform.core.outbox.OutboxService;
 import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.DuplicateDocumentException;
@@ -71,6 +72,7 @@ public class DocumentService {
 	private final FileStorageService fileStorageService;
 	private final StorageProperties storageProperties;
 	private final DomainEventPublisher eventPublisher;
+	private final OutboxService outboxService;
 	private final AuditLogger auditLogger;
 	private final DocumentProcessingAttemptJpaRepository attemptRepository;
 	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
@@ -127,6 +129,11 @@ public class DocumentService {
 			Receipt saved = receiptRepository.save(receipt);
 
 			eventPublisher.publish(new DocumentUploadedEvent(saved.getId(), client.getId(), client.getFirmId()));
+			outboxService.append(
+					OutboxService.DOCUMENT_AI_PROCESS,
+					client.getFirmId(),
+					saved.getId(),
+					java.util.Map.of("documentId", saved.getId().toString(), "clientId", client.getId().toString()));
 			auditLogger.record(AuditEvent.fromTenant()
 					.firmId(saved.getFirmId())
 					.action(AuditAction.DOCUMENT_UPLOADED)
@@ -321,6 +328,11 @@ public class DocumentService {
 			throw new BusinessException(ErrorCodes.AI_RATE_LIMITED, "Too many processing retries for this document");
 		}
 		eventPublisher.publish(new DocumentUploadedEvent(receipt.getId(), clientId, receipt.getFirmId()));
+		outboxService.append(
+				OutboxService.DOCUMENT_AI_PROCESS,
+				receipt.getFirmId(),
+				receipt.getId(),
+				Map.of("documentId", receipt.getId().toString(), "clientId", clientId.toString()));
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(receipt.getFirmId())
 				.action(AuditAction.AI_PROCESSING_RETRIED)

@@ -24,7 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import com.finance.platform.support.BaseWebIntegrationTest;
+import com.finance.platform.support.AbstractPostgresIntegrationTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class CategoryCreationIntegrationTest extends BaseWebIntegrationTest {
+class CategoryCreationIntegrationTest extends AbstractPostgresIntegrationTest {
 
 	private static final String PASSWORD = "password1";
 
@@ -175,10 +175,12 @@ class CategoryCreationIntegrationTest extends BaseWebIntegrationTest {
 
 		assertThat(categoryRepository.findAllByFirmIdAndDeletedAtIsNull(firmA.firmId()))
 				.extracting(Category::getCode)
-				.containsExactly("TRAVEL");
+				.contains("TRAVEL");
+		assertThat(categoryRepository.findAllByFirmIdAndDeletedAtIsNull(firmA.firmId()).stream()
+				.filter(category -> "TRAVEL".equals(category.getCode())).count()).isEqualTo(1);
 		assertThat(categoryRepository.findAllByFirmIdAndDeletedAtIsNull(firmB.firmId()))
 				.extracting(Category::getCode)
-				.containsExactly("TRAVEL");
+				.contains("TRAVEL");
 	}
 
 	@ParameterizedTest

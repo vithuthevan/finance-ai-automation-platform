@@ -65,6 +65,19 @@ public class EmailVerificationService {
 	}
 
 	@Transactional
+	public void resendVerification(String email) {
+		if (email == null || email.isBlank()) {
+			return;
+		}
+		userRepository.findByEmailAndDeletedAtIsNull(email.trim()).ifPresent(user -> {
+			if (user.getEmailVerifiedAt() != null || !authProperties.isEmailVerificationRequired()) {
+				return;
+			}
+			sendVerificationEmail(user);
+		});
+	}
+
+	@Transactional
 	public void verifyEmail(String token) {
 		EmailVerificationToken stored = verificationTokenRepository.findByTokenHash(sha256(token))
 				.orElseThrow(() -> new ValidationException("token", "Verification token is invalid"));

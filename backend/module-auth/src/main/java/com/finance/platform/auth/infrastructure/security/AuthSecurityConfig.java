@@ -77,7 +77,7 @@ public class AuthSecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, SecurityPaths.AUTH_LOGIN, SecurityPaths.AUTH_REGISTER,
 								SecurityPaths.AUTH_REFRESH, SecurityPaths.AUTH_FORGOT, SecurityPaths.AUTH_RESET,
-								SecurityPaths.AUTH_LOGOUT, SecurityPaths.AUTH_VERIFY_EMAIL)
+								SecurityPaths.AUTH_LOGOUT, SecurityPaths.AUTH_VERIFY_EMAIL, SecurityPaths.AUTH_RESEND_VERIFICATION)
 						.permitAll()
 						.requestMatchers(SecurityPaths.HEALTH, SecurityPaths.HEALTH + "/**", "/error")
 						.permitAll()

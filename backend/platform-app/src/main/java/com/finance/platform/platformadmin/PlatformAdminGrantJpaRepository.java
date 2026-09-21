@@ -10,4 +10,6 @@ public interface PlatformAdminGrantJpaRepository extends JpaRepository<PlatformA
 	Optional<PlatformAdminGrant> findByUserId(UUID userId);
 
 	boolean existsByUserIdAndActiveTrue(UUID userId);
+
+	long countByActiveTrue();
 }

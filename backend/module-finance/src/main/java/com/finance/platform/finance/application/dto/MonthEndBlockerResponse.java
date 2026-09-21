@@ -1,8 +1,7 @@
 package com.finance.platform.finance.application.dto;
 
 import com.finance.platform.finance.application.close.CloseCheckSeverity;
-
-import java.util.List;
+import com.finance.platform.finance.application.close.CloseResponsibility;
 
 public record MonthEndBlockerResponse(
 		CloseCheckSeverity severity,
@@ -10,6 +9,8 @@ public record MonthEndBlockerResponse(
 		String message,
 		int count,
 		String actionHint,
+		CloseResponsibility responsibility,
+		String responsibilityLabel,
 		CloseActionLinkResponse action
 ) {
 }

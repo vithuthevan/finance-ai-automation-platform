@@ -37,8 +37,7 @@ class MonthEndCommandCenterIntegrationTest extends AbstractPostgresIntegrationTe
 		mockMvc.perform(get("/api/v1/work/onboarding-checklist")
 						.header("Authorization", "Bearer " + admin.token()))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.steps[1].code").value("CONFIRM_CATEGORIES"))
-				.andExpect(jsonPath("$.steps[1].completed").value(true));
+				.andExpect(jsonPath("$.steps[?(@.code=='CONFIRM_CATEGORIES')].completed").value(true));
 	}
 
 	@Test

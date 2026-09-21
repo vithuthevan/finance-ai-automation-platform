@@ -6,6 +6,7 @@ import com.finance.platform.finance.application.dto.BankImportMappingRequest;
 import com.finance.platform.finance.application.dto.BankImportPreviewResponse;
 import com.finance.platform.finance.application.dto.BankImportResponse;
 import com.finance.platform.finance.application.dto.BankTransactionResponse;
+import com.finance.platform.finance.application.dto.ConfirmBankInvoicePaymentRequest;
 import com.finance.platform.finance.application.dto.CreateBankAccountRequest;
 import com.finance.platform.finance.application.dto.CreateDocumentRequestFromBankRequest;
 import com.finance.platform.finance.application.dto.CreateExpenseFromBankRequest;
@@ -180,6 +181,16 @@ public class BankController {
 			@RequestBody ConfirmRequest body
 	) {
 		return bankReconciliationService.confirmMatch(clientId, bankTransactionId, body.expenseId(), body.incomeId());
+	}
+
+	@PostMapping("/transactions/{bankTransactionId}/confirm-invoice-payment")
+	@PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT')")
+	public BankTransactionResponse confirmInvoicePayment(
+			@PathVariable UUID clientId,
+			@PathVariable UUID bankTransactionId,
+			@jakarta.validation.Valid @RequestBody ConfirmBankInvoicePaymentRequest body
+	) {
+		return bankReconciliationService.confirmInvoicePayment(clientId, bankTransactionId, body);
 	}
 
 	@PostMapping("/transactions/{bankTransactionId}/reject")

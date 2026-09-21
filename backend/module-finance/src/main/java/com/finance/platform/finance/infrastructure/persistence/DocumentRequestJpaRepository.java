@@ -55,4 +55,13 @@ public interface DocumentRequestJpaRepository extends JpaRepository<DocumentRequ
 			  and r.dueDate < :today
 			""")
 	List<DocumentRequest> findOverdueOpen(@Param("today") LocalDate today);
+
+	@Query("""
+			select r from DocumentRequest r
+			join fetch r.client
+			where r.firmId = :firmId
+			  and r.status in (com.finance.platform.finance.domain.model.DocumentRequest.RequestStatus.OPEN,
+			                   com.finance.platform.finance.domain.model.DocumentRequest.RequestStatus.UPLOADED)
+			""")
+	List<DocumentRequest> findOpenByFirmId(@Param("firmId") UUID firmId);
 }

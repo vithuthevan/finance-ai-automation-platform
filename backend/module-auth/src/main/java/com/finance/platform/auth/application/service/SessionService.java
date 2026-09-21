@@ -156,7 +156,7 @@ public class SessionService {
 		userRepository.save(user);
 		stored.setUsedAt(Instant.now());
 		passwordResetTokenRepository.save(stored);
-		refreshTokenRepository.deleteByUser_Id(user.getId());
+		revokeAllForUser(user.getId());
 		Map<String, Object> metadata = new LinkedHashMap<>();
 		metadata.put("email", user.getEmail());
 		securityEventLogger.passwordResetCompleted(user.getId(), user.getFirmId(), user.getEmail());

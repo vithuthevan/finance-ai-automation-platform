@@ -178,7 +178,7 @@ public class PracticeWorkQueueService {
 								accountant.getId(), accountant.getFullName(), 0, 0, 0, 0, 0, 0, 0, 0);
 					}
 					var portfolio = monthEndCommandCenterService.commandCenter(
-							null, null, null, null, accountant.getId(), null);
+							null, null, null, null, null, accountant.getId(), null);
 					int ready = portfolio.summary().ready();
 					int blocked = portfolio.summary().blocked();
 					int attention = portfolio.summary().needsAttention();

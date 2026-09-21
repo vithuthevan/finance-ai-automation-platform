@@ -24,7 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import com.finance.platform.support.BaseWebIntegrationTest;
+import com.finance.platform.support.AbstractPostgresIntegrationTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class ClientCreationIntegrationTest extends BaseWebIntegrationTest {
+class ClientCreationIntegrationTest extends AbstractPostgresIntegrationTest {
 
 	private static final String PASSWORD = "password1";
 

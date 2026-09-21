@@ -80,7 +80,7 @@ public class IncomeService {
 
 	@Transactional
 	public IncomeResponse create(UUID clientId, IncomeRequest request) {
-		Client client = clientAccessService.requireWriteAccess(clientId);
+		Client client = clientAccessService.requireLedgerWriteAccess(clientId);
 		periodCloseService.assertPeriodOpen(clientId, request.transactionDate());
 		User currentUser = clientAccessService.requireCurrentUserEntity();
 		Category category = requireIncomeCategory(request.categoryId(), client);
@@ -117,7 +117,7 @@ public class IncomeService {
 
 	@Transactional
 	public IncomeResponse update(UUID clientId, UUID incomeId, IncomeRequest request) {
-		Client client = clientAccessService.requireWriteAccess(clientId);
+		Client client = clientAccessService.requireLedgerWriteAccess(clientId);
 		Income income = findIncome(clientId, incomeId);
 		TransactionStatusRules.assertDraft(income.getStatus());
 		periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate(), request.transactionDate());
@@ -150,7 +150,7 @@ public class IncomeService {
 
 	@Transactional
 	public void delete(UUID clientId, UUID incomeId) {
-		clientAccessService.requireWriteAccess(clientId);
+		clientAccessService.requireLedgerWriteAccess(clientId);
 		Income income = findIncome(clientId, incomeId);
 		TransactionStatusRules.assertDraft(income.getStatus());
 		periodCloseService.assertPeriodOpen(clientId, income.getTransactionDate());

@@ -10,6 +10,7 @@ import com.finance.platform.finance.domain.model.Firm;
 import com.finance.platform.finance.infrastructure.persistence.CategoryJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ClientJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.FirmJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.ClientMonthlyEvidenceJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ReceiptJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +30,7 @@ public class FirmOnboardingService {
 	private final UserJpaRepository userRepository;
 	private final CategoryJpaRepository categoryRepository;
 	private final ReceiptJpaRepository receiptRepository;
+	private final ClientMonthlyEvidenceJpaRepository monthlyEvidenceRepository;
 
 	@Transactional(readOnly = true)
 	public FirmOnboardingChecklistResponse checklist() {
@@ -50,12 +52,14 @@ public class FirmOnboardingService {
 				.filter(u -> u.getRole().getCode() == Role.RoleCode.BUSINESS_OWNER)
 				.count();
 		long documents = receiptRepository.findByFirmIdAndDeletedAtIsNull(firmId, PageRequest.of(0, 1)).getTotalElements();
+		long evidenceChecklists = monthlyEvidenceRepository.countByFirmIdAndActiveTrue(firmId);
 
 		List<OnboardingStepResponse> steps = new ArrayList<>();
 		steps.add(step("CREATE_CLIENT", "Create your first client", clients > 0, "/app/clients"));
 		steps.add(step("CONFIRM_CATEGORIES", "Confirm expense & income categories", categories >= 5, "/app/categories"));
 		steps.add(step("ADD_STAFF", "Add an accountant or auditor", staff > 0, "/app/users"));
 		steps.add(step("INVITE_OWNER", "Create a business owner login", owners > 0, "/app/users"));
+		steps.add(step("CONFIGURE_EVIDENCE", "Configure monthly evidence checklist", evidenceChecklists > 0, "/app/clients"));
 		steps.add(step("UPLOAD_DOCUMENT", "Upload first document evidence", documents > 0, "/app/documents"));
 		steps.add(step("PREPARE_CLOSE", "Open month-end command center", clients > 0, "/app/month-end"));
 

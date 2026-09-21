@@ -58,6 +58,16 @@ public class EventOutbox {
 	@Column(name = "processed_at")
 	private Instant processedAt;
 
+	@Column(name = "next_attempt_at", nullable = false)
+	@Builder.Default
+	private Instant nextAttemptAt = Instant.now();
+
+	@Column(name = "locked_until")
+	private Instant lockedUntil;
+
+	@Column(name = "locked_by", length = 120)
+	private String lockedBy;
+
 	public enum Status {
 		PENDING, PROCESSED, FAILED
 	}

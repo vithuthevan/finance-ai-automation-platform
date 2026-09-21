@@ -19,6 +19,7 @@ import com.finance.platform.finance.application.bankimport.ParsedBankRow;
 import com.finance.platform.finance.application.dto.BankImportPreviewResponse;
 import com.finance.platform.finance.application.dto.BankImportResponse;
 import com.finance.platform.finance.application.dto.BankTransactionResponse;
+import com.finance.platform.finance.application.dto.ConfirmBankInvoicePaymentRequest;
 import com.finance.platform.finance.application.dto.CreateDocumentRequestFromBankRequest;
 import com.finance.platform.finance.application.dto.CreateExpenseFromBankRequest;
 import com.finance.platform.finance.application.dto.CreateExpenseRequest;
@@ -37,7 +38,14 @@ import com.finance.platform.finance.domain.model.DocumentRequest;
 import com.finance.platform.finance.domain.model.Expense;
 import com.finance.platform.finance.domain.model.Income;
 import com.finance.platform.finance.domain.model.Receipt;
+import com.finance.platform.finance.application.dto.invoicing.AllocatePaymentRequest;
+import com.finance.platform.finance.application.dto.invoicing.ArPaymentResponse;
+import com.finance.platform.finance.application.dto.invoicing.PaymentAllocationItemRequest;
+import com.finance.platform.finance.application.invoicing.MoneyMath;
+import com.finance.platform.finance.application.service.invoicing.ArPaymentService;
 import com.finance.platform.finance.domain.model.ReconciliationMatch;
+import com.finance.platform.finance.domain.model.recon.ReconciliationMatchGroup;
+import com.finance.platform.finance.domain.model.recon.ReconciliationMatchGroupItem;
 import com.finance.platform.finance.domain.model.TransactionStatus;
 import com.finance.platform.finance.infrastructure.persistence.BankImportJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.BankImportProfileJpaRepository;
@@ -46,8 +54,11 @@ import com.finance.platform.finance.infrastructure.persistence.ExpenseJpaReposit
 import com.finance.platform.finance.infrastructure.persistence.IncomeJpaRepository;
 import com.finance.platform.finance.application.workflow.PeriodReadinessNotifier;
 import com.finance.platform.finance.application.workflow.WorkflowNotificationService;
+import com.finance.platform.finance.infrastructure.persistence.ReconciliationMatchGroupItemJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.ReconciliationMatchGroupJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ReconciliationMatchJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -87,6 +98,9 @@ public class BankReconciliationService {
 	private final DocumentRequestService documentRequestService;
 	private final AuditLogger auditLogger;
 	private final WorkflowNotificationService workflowNotificationService;
+	private final ArPaymentService arPaymentService;
+	private final ReconciliationMatchGroupJpaRepository matchGroupRepository;
+	private final ReconciliationMatchGroupItemJpaRepository matchGroupItemRepository;
 	private final PeriodReadinessNotifier periodReadinessNotifier;
 
 	@Transactional(readOnly = true)
@@ -150,7 +164,12 @@ public class BankReconciliationService {
 				.status("IMPORTED")
 				.build();
 		batch.setFirmId(client.getFirmId());
-		batch = importRepository.save(batch);
+		try {
+			batch = importRepository.save(batch);
+		} catch (DataIntegrityViolationException ex) {
+			throw new BusinessException(ErrorCodes.BANK_IMPORT_DUPLICATE,
+					"This statement file was already imported for this bank account");
+		}
 
 		int imported = 0;
 		int duplicates = 0;
@@ -162,7 +181,12 @@ public class BankReconciliationService {
 				continue;
 			}
 			BankTransaction txn = toEntity(client, account, batch, row, rowHash);
-			txn = bankTransactionRepository.save(txn);
+			try {
+				txn = bankTransactionRepository.save(txn);
+			} catch (DataIntegrityViolationException ex) {
+				duplicates++;
+				continue;
+			}
 			generateSuggestions(txn);
 			imported++;
 		}
@@ -309,6 +333,81 @@ public class BankReconciliationService {
 				.resourceType(AuditResourceType.BANK)
 				.resourceId(bank.getId())
 				.clientId(clientId)
+				.build());
+		return toResponse(saved);
+	}
+
+	@Transactional
+	public BankTransactionResponse confirmInvoicePayment(
+			UUID clientId,
+			UUID bankTransactionId,
+			ConfirmBankInvoicePaymentRequest request
+	) {
+		clientAccessService.requireApproveAccess(clientId);
+		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		assertReconciliationWritable(clientId, bank.getTxnDate());
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.MATCHED) {
+			return toResponse(bank);
+		}
+		validateDirection(bank, false);
+		BigDecimal bankAmount = bank.absoluteAmount();
+		List<PaymentAllocationItemRequest> allocations = request.allocations() == null
+				? List.of()
+				: request.allocations();
+		BigDecimal allocationTotal = BigDecimal.ZERO;
+		for (PaymentAllocationItemRequest item : allocations) {
+			allocationTotal = MoneyMath.add(allocationTotal, MoneyMath.money(item.amount()));
+		}
+		if (allocationTotal.compareTo(bankAmount) > 0) {
+			throw new ValidationException("allocations", "Allocation total exceeds bank transaction amount");
+		}
+		String reference = bank.getReferenceNo() == null ? bank.getDescription() : bank.getReferenceNo();
+		ArPaymentResponse payment = arPaymentService.recordFromBank(
+				request.customerId(),
+				bank.getTxnDate(),
+				bankAmount,
+				reference,
+				bank.getId());
+		if (!allocations.isEmpty()) {
+			payment = arPaymentService.allocate(payment.id(), new AllocatePaymentRequest(allocations));
+		}
+		ReconciliationMatchGroup group = ReconciliationMatchGroup.builder()
+				.client(bank.getClient())
+				.status(ReconciliationMatchGroup.Status.CONFIRMED)
+				.confirmedBy(SecurityUtils.requireCurrentUser().getId())
+				.confirmedAt(Instant.now())
+				.notes("Invoice payment match")
+				.build();
+		group.setFirmId(bank.getFirmId());
+		group = matchGroupRepository.save(group);
+		matchGroupItemRepository.save(ReconciliationMatchGroupItem.builder()
+				.group(group)
+				.bankTransaction(bank)
+				.build());
+		matchGroupItemRepository.save(ReconciliationMatchGroupItem.builder()
+				.group(group)
+				.paymentId(payment.id())
+				.allocatedAmount(bankAmount)
+				.build());
+		for (PaymentAllocationItemRequest item : allocations) {
+			matchGroupItemRepository.save(ReconciliationMatchGroupItem.builder()
+					.group(group)
+					.invoiceId(item.invoiceId())
+					.allocatedAmount(MoneyMath.money(item.amount()))
+					.build());
+		}
+		rejectOpenSuggestions(bank);
+		bank.setMatchStatus(BankTransaction.MatchStatus.MATCHED);
+		bank.setPendingExpenseId(null);
+		bank.setPendingIncomeId(null);
+		BankTransaction saved = bankTransactionRepository.save(bank);
+		auditLogger.record(AuditEvent.fromTenant()
+				.firmId(bank.getFirmId())
+				.action(AuditAction.RECONCILIATION_CONFIRMED)
+				.resourceType(AuditResourceType.BANK)
+				.resourceId(bank.getId())
+				.clientId(clientId)
+				.metadata(Map.of("event", "bank_invoice_payment", "paymentId", payment.id().toString()))
 				.build());
 		return toResponse(saved);
 	}
@@ -523,25 +622,13 @@ public class BankReconciliationService {
 	}
 
 	private BankTransactionResponse toResponse(BankTransaction txn) {
-		List<MatchSuggestionResponse> suggestions = matchRepository.findActiveSuggestions(txn.getId()).stream()
-				.map(match -> new MatchSuggestionResponse(
-						match.getId(),
-						match.getExpense() != null ? "EXPENSE" : "INCOME",
-						match.getExpense() != null ? match.getExpense().getId() : match.getIncome().getId(),
-						match.getExpense() != null
-								? match.getExpense().getVendorName()
-								: match.getIncome().getCustomerName(),
-						match.getExpense() != null ? match.getExpense().getAmount() : match.getIncome().getAmount(),
-						match.getExpense() != null
-								? match.getExpense().getTransactionDate()
-								: match.getIncome().getTransactionDate(),
-						match.getExpense() != null
-								? match.getExpense().getDescription()
-								: match.getIncome().getDescription(),
-						match.getMatchScore() == null ? 0 : match.getMatchScore(),
-						match.getConfidence(),
-						match.getStatus()))
-				.toList();
+		List<MatchSuggestionResponse> suggestions;
+		if (txn.getMatchStatus() == BankTransaction.MatchStatus.MATCHED
+				|| txn.getMatchStatus() == BankTransaction.MatchStatus.IGNORED) {
+			suggestions = List.of();
+		} else {
+			suggestions = suggestionService.suggest(txn);
+		}
 		return BankTransactionResponse.from(txn, suggestions);
 	}
 

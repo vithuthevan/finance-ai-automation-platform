@@ -81,7 +81,7 @@ public class ExpenseService {
 
 	@Transactional
 	public ExpenseResponse create(UUID clientId, CreateExpenseRequest request) {
-		Client client = clientAccessService.requireWriteAccess(clientId);
+		Client client = clientAccessService.requireLedgerWriteAccess(clientId);
 		periodCloseService.assertPeriodOpen(clientId, request.transactionDate());
 		User currentUser = clientAccessService.requireCurrentUserEntity();
 		Category category = requireExpenseCategory(request.categoryId(), client);
@@ -117,7 +117,7 @@ public class ExpenseService {
 
 	@Transactional
 	public ExpenseResponse update(UUID clientId, UUID expenseId, UpdateExpenseRequest request) {
-		Client client = clientAccessService.requireWriteAccess(clientId);
+		Client client = clientAccessService.requireLedgerWriteAccess(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		TransactionStatusRules.assertDraft(expense.getStatus());
 		periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate(), request.transactionDate());
@@ -149,7 +149,7 @@ public class ExpenseService {
 
 	@Transactional
 	public void delete(UUID clientId, UUID expenseId) {
-		clientAccessService.requireWriteAccess(clientId);
+		clientAccessService.requireLedgerWriteAccess(clientId);
 		Expense expense = findExpense(clientId, expenseId);
 		TransactionStatusRules.assertDraft(expense.getStatus());
 		periodCloseService.assertPeriodOpen(clientId, expense.getTransactionDate());

@@ -3,6 +3,8 @@ package com.finance.platform.finance.application.service;
 import com.finance.platform.finance.application.close.CloseCheck;
 import com.finance.platform.finance.application.close.CloseCheckContext;
 import com.finance.platform.finance.application.close.CloseCheckSeverity;
+import com.finance.platform.finance.application.close.CloseResponsibility;
+import com.finance.platform.finance.application.close.CloseResponsibilityResolver;
 import com.finance.platform.finance.application.close.CloseFinding;
 import com.finance.platform.finance.application.dto.CloseChecklistItemResponse;
 import com.finance.platform.finance.application.dto.CloseFindingResponse;
@@ -158,12 +160,17 @@ public class CloseReadinessService {
 	private static List<CloseFindingResponse> map(List<CloseFinding> findings, CloseCheckSeverity severity) {
 		return findings.stream()
 				.filter(finding -> finding.severity() == severity)
-				.map(finding -> new CloseFindingResponse(
-						finding.severity(),
-						finding.code(),
-						finding.message(),
-						finding.count(),
-						finding.actionHint()))
+				.map(finding -> {
+					CloseResponsibility responsibility = CloseResponsibilityResolver.forActionHint(finding.actionHint());
+					return new CloseFindingResponse(
+							finding.severity(),
+							finding.code(),
+							finding.message(),
+							finding.count(),
+							finding.actionHint(),
+							responsibility,
+							CloseResponsibilityResolver.label(responsibility));
+				})
 				.toList();
 	}
 }

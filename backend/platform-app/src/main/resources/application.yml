@@ -1,6 +1,9 @@
 spring:
   application:
     name: finance-platform
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
   profiles:
     # Local IDE default only. Docker dev uses `dev`; production must set `prod` explicitly.
     default: local
@@ -30,6 +33,13 @@ app:
     issuer: ${APP_JWT_ISSUER:finance-platform}
   auth:
     email-verification-required: ${APP_AUTH_EMAIL_VERIFICATION_REQUIRED:false}
+    rate-limit-enabled: ${APP_AUTH_RATE_LIMIT_ENABLED:true}
+    rate-limit-store: ${APP_AUTH_RATE_LIMIT_STORE:memory}
+    multi-instance-deployment: ${APP_MULTI_INSTANCE:false}
+    fail-on-in-memory-multi-instance: ${APP_AUTH_FAIL_ON_INMEMORY_MULTI_INSTANCE:true}
+    redis:
+      host: ${APP_AUTH_REDIS_HOST:localhost}
+      port: ${APP_AUTH_REDIS_PORT:6379}
     cookie:
       secure: ${APP_AUTH_COOKIE_SECURE:false}
   storage:
@@ -73,6 +83,10 @@ app:
     maintenance-cron: ${APP_SUBSCRIPTION_MAINTENANCE_CRON:0 30 7 * * *}
   platform:
     bootstrap-admin-email: ${APP_PLATFORM_ADMIN_BOOTSTRAP_EMAIL:}
+    bootstrap-admin-enabled: ${APP_PLATFORM_ADMIN_BOOTSTRAP_ENABLED:false}
+  outbox:
+    poll-interval-ms: ${APP_OUTBOX_POLL_INTERVAL_MS:3000}
+    worker-id: ${APP_OUTBOX_WORKER_ID:}
   observability:
     metrics-refresh-ms: ${APP_OBSERVABILITY_METRICS_REFRESH_MS:60000}
 

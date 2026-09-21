@@ -15,4 +15,11 @@ public class LoggingEmailService implements EmailService {
 		int bodyLength = body == null ? 0 : body.length();
 		log.info("Email [{}] to {} (bodyLength={})", subject, to, bodyLength);
 	}
+
+	@Override
+	public void send(String to, String subject, String body, EmailAttachment attachment) {
+		int bodyLength = body == null ? 0 : body.length();
+		String attachmentName = attachment == null ? null : attachment.filename();
+		log.info("Email [{}] to {} (bodyLength={}, attachment={})", subject, to, bodyLength, attachmentName);
+	}
 }

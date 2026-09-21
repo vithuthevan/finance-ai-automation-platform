@@ -7,7 +7,7 @@ import com.finance.platform.finance.application.dto.CategoryResponse;
 import com.finance.platform.finance.application.dto.ClientResponse;
 import com.finance.platform.finance.application.dto.CreateExpenseRequest;
 import com.finance.platform.finance.application.dto.ExpenseResponse;
-import com.finance.platform.support.BaseWebIntegrationTest;
+import com.finance.platform.support.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class FinancialLifecycleIntegrationTest extends BaseWebIntegrationTest {
+class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest {
 
 	private static final String PASSWORD = "password1";
 

@@ -7,12 +7,15 @@ import com.finance.platform.auth.infrastructure.security.SecurityUser;
 import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.finance.application.close.CloseActionLinks;
 import com.finance.platform.finance.application.close.CloseCheckSeverity;
+import com.finance.platform.finance.application.close.CloseResponsibility;
+import com.finance.platform.finance.application.close.CloseResponsibilityResolver;
 import com.finance.platform.finance.application.dto.CloseActionLinkResponse;
 import com.finance.platform.finance.application.dto.CloseFindingResponse;
 import com.finance.platform.finance.application.dto.MonthEndBlockerResponse;
 import com.finance.platform.finance.application.dto.MonthEndClientRowResponse;
 import com.finance.platform.finance.application.dto.MonthEndCommandCenterResponse;
 import com.finance.platform.finance.application.dto.MonthEndCommandCenterSummaryResponse;
+import com.finance.platform.finance.application.dto.MonthEndPortfolioFocus;
 import com.finance.platform.finance.application.dto.MonthEndPortfolioState;
 import com.finance.platform.finance.application.dto.MonthEndProgressStepResponse;
 import com.finance.platform.finance.application.dto.PeriodReadinessResponse;
@@ -54,6 +57,7 @@ public class MonthEndCommandCenterService {
 			Integer month,
 			String query,
 			MonthEndPortfolioState stateFilter,
+			MonthEndPortfolioFocus focusFilter,
 			UUID accountantUserId,
 			UUID clientId
 	) {
@@ -109,12 +113,25 @@ public class MonthEndCommandCenterService {
 				case BLOCKED -> blocked++;
 			}
 
+			List<MonthEndBlockerResponse> blockers = mapBlockers(
+					readiness, client.getId(), periodId, evalFrom, evalTo);
+			int waitingOnClient = countResponsibility(blockers, CloseResponsibility.CLIENT);
+			int teamAction = countResponsibility(blockers, CloseResponsibility.TEAM);
+			if (overdue > 0 && waitingOnClient == 0) {
+				waitingOnClient = 1;
+			}
+
 			if (stateFilter != null && state != stateFilter) {
 				continue;
 			}
+			if (focusFilter == MonthEndPortfolioFocus.WAITING_ON_CLIENT
+					&& waitingOnClient == 0 && overdue == 0) {
+				continue;
+			}
+			if (focusFilter == MonthEndPortfolioFocus.TEAM_ACTION && teamAction == 0) {
+				continue;
+			}
 
-			List<MonthEndBlockerResponse> blockers = mapBlockers(
-					readiness, client.getId(), periodId, evalFrom, evalTo);
 			CloseActionLinkResponse primaryAction = primaryAction(state, blockers, client.getId(), periodId);
 
 			String accountantName = null;
@@ -137,6 +154,8 @@ public class MonthEndCommandCenterService {
 					readiness.ready() && persisted != AccountingPeriod.PeriodStatus.CLOSED,
 					readiness.readinessPercent(),
 					overdue,
+					waitingOnClient,
+					teamAction,
 					client.getPrimaryAccountantUserId(),
 					accountantName,
 					buildProgress(readiness, persisted),
@@ -213,14 +232,23 @@ public class MonthEndCommandCenterService {
 	) {
 		CloseActionLinkResponse action = CloseActionLinks.resolve(
 				finding.actionHint(), clientId, periodId, from, to);
+		CloseResponsibility responsibility = CloseResponsibilityResolver.forActionHint(finding.actionHint());
 		return new MonthEndBlockerResponse(
 				finding.severity(),
 				finding.code(),
 				finding.message(),
 				finding.count(),
 				finding.actionHint(),
+				responsibility,
+				CloseResponsibilityResolver.label(responsibility),
 				action
 		);
+	}
+
+	private static int countResponsibility(List<MonthEndBlockerResponse> blockers, CloseResponsibility responsibility) {
+		return (int) blockers.stream()
+				.filter(b -> b.responsibility() == responsibility && b.count() > 0)
+				.count();
 	}
 
 	private static CloseActionLinkResponse primaryAction(

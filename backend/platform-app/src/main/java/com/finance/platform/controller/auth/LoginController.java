@@ -90,8 +90,24 @@ public class LoginController {
 	}
 
 	@PostMapping("/verify-email")
-	public void verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+	public void verifyEmail(
+			@Valid @RequestBody VerifyEmailRequest request,
+			HttpServletRequest httpRequest
+	) {
+		authRateLimiter.checkAllowed("verify:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
 		emailVerificationService.verifyEmail(request.token());
+	}
+
+	@PostMapping("/resend-verification")
+	public void resendVerification(
+			@Valid @RequestBody EmailRequest request,
+			HttpServletRequest httpRequest
+	) {
+		authRateLimiter.checkAllowed("resend:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
+		if (request.email() != null && !request.email().isBlank()) {
+			authRateLimiter.checkAllowed("resend:" + request.email());
+		}
+		emailVerificationService.resendVerification(request.email());
 	}
 
 	private String resolveRefreshToken(TokenRequest request, HttpServletRequest httpRequest) {

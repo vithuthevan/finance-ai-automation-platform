@@ -17,6 +17,8 @@ public record MonthEndClientRowResponse(
 		boolean readyToClose,
 		int readinessPercent,
 		long overdueDocumentRequests,
+		int waitingOnClientItems,
+		int teamActionItems,
 		UUID primaryAccountantUserId,
 		String primaryAccountantName,
 		List<MonthEndProgressStepResponse> progress,
