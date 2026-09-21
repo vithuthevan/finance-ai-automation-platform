@@ -19,7 +19,7 @@ Collect → Extract → Review → Approve → Reconcile → Close → Report
 | Firm **ADMIN** | Firm setup, users, clients, categories, subscription, reopen closed periods |
 | **ACCOUNTANT** | Review docs, approve ledger, bank recon, close assigned clients |
 | **AUDITOR** | Read-only approved/voided data, reports, audit log |
-| **BUSINESS_OWNER** | Upload evidence, respond to document requests, see approved totals |
+| **BUSINESS_OWNER** | Upload evidence, respond to document requests, read permitted reports/ledger views — **no** ledger create/approve/void (FULL access is not accountant write) |
 | **Platform admin** | Cross-firm SaaS ops (plans, trials, suspend) — separate from firm `ADMIN` |
 
 **Problem solved:** Firms drowning in receipts/invoices and month-end chaos get one multi-tenant system to collect evidence, optionally AI-suggest drafts, human-approve books, reconcile bank CSVs, close periods with readiness gates, and report — without auto-posting AI into the ledger.

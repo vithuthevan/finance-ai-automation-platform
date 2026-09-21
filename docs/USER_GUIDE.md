@@ -19,7 +19,7 @@ What you see in the left sidebar depends on your role.
 | **ADMIN** | Firm owner / practice manager | Everything: clients, users, settings, subscription, full bookkeeping |
 | **ACCOUNTANT** | Day-to-day bookkeeping | My work, documents, expenses, income, banking, close, reports |
 | **AUDITOR** | Read-only oversight | Clients, documents, ledger views, banking/close (view), reports, audit log |
-| **BUSINESS_OWNER** | Client of the firm | Home (requests), my documents, approved expenses/income, summary |
+| **BUSINESS_OWNER** | Client of the firm | Home (requests), my documents, financial summary (read-only); cannot create or approve ledger entries |
 | **Upload-only access** | Client staff who only send files | Requested documents + my documents |
 
 Client access types (`FULL`, `READ_ONLY`, `UPLOAD_ONLY`) never exceed your role. Accountants only work on clients they are assigned to.

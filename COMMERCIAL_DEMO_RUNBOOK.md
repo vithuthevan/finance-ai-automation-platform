@@ -20,8 +20,10 @@
 
 1. Go to **Month-end** (sidebar).  
 2. Point at summary: **Ready / Needs attention / Blocked / Closed**.  
-3. Scroll **Cedar Café** — show blockers (e.g. open document request) and **Resolve** actions.  
-4. Mention **Ocean Traders** (draft approval) and **ABC Engineering** (bank import attention) if seeded.
+3. Use **Focus → Waiting on client** vs **Action required from team** to show accountability.  
+4. Scroll **Cedar Café** — blockers grouped under *Waiting on client* / *Your team*; use action buttons.  
+5. Mention **Ocean Traders** (draft approval) and **ABC Engineering** (bank import attention) if seeded.  
+6. Optional: **Clients → Evidence** on Cedar — monthly checklist and **Create requests for period**.
 
 ---
 
