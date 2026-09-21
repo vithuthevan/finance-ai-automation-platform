@@ -254,7 +254,6 @@ def ensure_users(api: Api, client_id: str, with_auditor: bool) -> dict[str, str]
             print(f"User created: {email} ({role})")
             users = list_users(api)
 
-        # Always refresh client access (Users page cannot do this in UI)
         api.put(
             f"/api/v1/users/{ids[email]}/client-access",
             {
@@ -427,6 +426,9 @@ def ensure_extra_portfolio_clients(api: Api, categories: dict[str, str], account
         ("Ocean Traders Lanka", "finance@oceantraders.lk"),
         ("ABC Engineering Services", "admin@abceng.lk"),
         ("Harbor Retail Collective", "ops@harborretail.lk"),
+        ("Summit Logistics (Pvt) Ltd", "ap@summitlogistics.lk"),
+        ("Blue Horizon Guest House", "owner@bluehorizon.lk"),
+        ("Metro Print Solutions", "finance@metroprint.lk"),
     ]
     clients = api.get("/api/v1/clients") or []
     if isinstance(clients, dict):
@@ -464,15 +466,87 @@ def ensure_extra_portfolio_clients(api: Api, categories: dict[str, str], account
     # ABC Engineering: bank account but no September import (attention warning)
     abc = find_by(clients, "name", "ABC Engineering Services")
     if abc:
-        accounts = api.get(f"/api/v1/clients/{abc['id']}/bank-accounts") or []
+        accounts = api.get(f"/api/v1/clients/{abc['id']}/bank/accounts") or []
         if isinstance(accounts, dict):
             accounts = accounts.get("content", accounts)
         if not accounts:
             api.post(
-                f"/api/v1/clients/{abc['id']}/bank-accounts",
-                {"name": "Operating current", "currencyCode": "LKR", "accountNumberLast4": "1234"},
+                f"/api/v1/clients/{abc['id']}/bank/accounts",
+                {
+                    "bankName": "HNB",
+                    "accountName": "Operating current",
+                    "maskedAccountNumber": "****1234",
+                    "currency": "LKR",
+                },
             )
             print("ABC Engineering: bank account seeded (import pending)")
+
+
+def ensure_cedar_monthly_evidence(api: Api, client_id: str) -> None:
+    existing = api.get(f"/api/v1/clients/{client_id}/monthly-evidence") or []
+    if existing:
+        print("Cedar monthly evidence checklist already configured")
+        return
+    items = [
+        ("Bank statement", "Full-month operating account statement.", "BANK_STATEMENT"),
+        ("Sales summary", "Daily or weekly sales summary for September.", "OTHER"),
+        ("Rent invoice", "Shop rent invoice for the month.", "PURCHASE_INVOICE"),
+        ("Electricity bill", "CEB or utility bill for the month.", "PURCHASE_INVOICE"),
+        ("Supplier invoices", "Key supplier invoices not already uploaded.", "PURCHASE_INVOICE"),
+    ]
+    for title, description, doc_type in items:
+        api.post(
+            f"/api/v1/clients/{client_id}/monthly-evidence",
+            {
+                "title": title,
+                "description": description,
+                "documentType": doc_type,
+                "required": True,
+                "responsibleParty": "CLIENT",
+            },
+        )
+    print("Cedar Café: monthly evidence checklist seeded")
+
+
+def ensure_cedar_bank_import(api: Api, client_id: str, bank_account_id: str) -> None:
+    csv_path = FILES / "bank-sept.csv"
+    if not csv_path.exists():
+        print("WARNING: bank-sept.csv missing; skip Cedar bank import seed")
+        return
+    txns = api.get(f"/api/v1/clients/{client_id}/bank/transactions?size=5") or {}
+    content = txns.get("content", txns if isinstance(txns, list) else [])
+    if content:
+        print("Cedar bank transactions already imported")
+        return
+    data = csv_path.read_bytes()
+    boundary = "----FinanceDemoBankImport"
+    body = b"".join(
+        [
+            f"--{boundary}\r\n".encode(),
+            b'Content-Disposition: form-data; name="bankAccountId"\r\n\r\n',
+            f"{bank_account_id}\r\n".encode(),
+            f"--{boundary}\r\n".encode(),
+            f'Content-Disposition: form-data; name="file"; filename="bank-sept.csv"\r\n'.encode(),
+            b"Content-Type: text/csv\r\n\r\n",
+            data,
+            b"\r\n",
+            f"--{boundary}--\r\n".encode(),
+        ]
+    )
+    url = f"{api.base}/api/v1/clients/{client_id}/bank/imports"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Authorization": f"Bearer {api.token}",
+        "Idempotency-Key": str(uuid.uuid4()),
+    }
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            resp.read()
+        print("Cedar Café: September bank CSV imported (reconciliation may remain)")
+    except urllib.error.HTTPError as err:
+        print(f"WARNING: Cedar bank import failed: {err.read().decode(errors='replace')}")
 
 
 def main() -> int:
@@ -494,7 +568,9 @@ def main() -> int:
     client_id = ensure_client(api)
     user_ids = ensure_users(api, client_id, with_auditor=args.with_auditor)
     ensure_extra_portfolio_clients(api, categories, user_ids.get(ACCOUNTANT_EMAIL))
-    ensure_bank_account(api, client_id)
+    bank_id = ensure_bank_account(api, client_id)
+    ensure_cedar_monthly_evidence(api, client_id)
+    ensure_cedar_bank_import(api, client_id, bank_id)
     ensure_august_history(api, client_id, categories)
     ensure_open_document_request(api, client_id)
     if not args.skip_document:
