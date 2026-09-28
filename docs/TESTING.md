@@ -42,7 +42,16 @@ cd backend
 | `FileUploadSecurityIntegrationTest` | Postgres | Upload rejection |
 | `SubscriptionQuotaConcurrencyIntegrationTest` | Postgres | Client quota race |
 
-Postgres suites are **skipped automatically** when Docker is unavailable (`@Testcontainers(disabledWithoutDocker = true)`).
+Postgres suites **require Docker**; the build fails fast if Testcontainers cannot start (no silent skip).
+
+Tagged tasks (CI-aligned):
+
+```bash
+./gradlew :module-auth:test :module-finance:test
+./gradlew :platform-app:flywayIntegrationTest
+./gradlew :platform-app:postgresIntegrationTest
+./gradlew :platform-app:tenantSecurityIntegrationTest
+```
 
 ## Frontend
 
