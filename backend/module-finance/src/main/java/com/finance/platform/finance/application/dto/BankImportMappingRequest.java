@@ -10,6 +10,7 @@ public record BankImportMappingRequest(
 		int creditColumn,
 		int balanceColumn,
 		Integer amountColumn,
+		Integer externalTransactionIdColumn,
 		String dateFormat,
 		boolean headerRow,
 		String profileName
@@ -23,6 +24,7 @@ public record BankImportMappingRequest(
 				creditColumn,
 				balanceColumn,
 				amountColumn,
+				externalTransactionIdColumn,
 				dateFormat == null ? "AUTO" : dateFormat,
 				headerRow);
 	}

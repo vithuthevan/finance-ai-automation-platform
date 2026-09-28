@@ -13,6 +13,7 @@ public record ParsedBankRow(
 		BigDecimal debit,
 		BigDecimal credit,
 		BigDecimal balance,
+		String externalTransactionId,
 		String rowHash
 ) {
 }

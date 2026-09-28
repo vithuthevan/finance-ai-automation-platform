@@ -12,11 +12,12 @@ public record CsvColumnMapping(
 		int creditColumn,
 		int balanceColumn,
 		Integer amountColumn,
+		Integer externalTransactionIdColumn,
 		String dateFormat,
 		boolean headerRow
 ) {
 	public static CsvColumnMapping defaults() {
-		return new CsvColumnMapping(0, 1, 2, 3, 4, 5, null, "AUTO", true);
+		return new CsvColumnMapping(0, 1, 2, 3, 4, 5, null, null, "AUTO", true);
 	}
 
 	public DateTimeFormatter[] dateFormatters() {

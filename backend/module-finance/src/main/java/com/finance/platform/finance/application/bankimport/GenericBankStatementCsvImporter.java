@@ -4,11 +4,9 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -123,27 +121,13 @@ public class GenericBankStatementCsvImporter implements BankStatementImporter {
 			throw new IllegalArgumentException("No debit or credit amount");
 		}
 		BigDecimal balance = parseAmount(parts, cols.balanceColumn());
-		String hash = rowHash(txnDate, debit, credit, description, reference);
-		return new ParsedBankRow(lineNumber, txnDate, txnDate, description, reference, debit, credit, balance, hash);
-	}
-
-	static String rowHash(LocalDate date, BigDecimal debit, BigDecimal credit, String description, String reference) {
-		String payload = String.join("|",
-				date.toString(),
-				debit == null ? "" : debit.stripTrailingZeros().toPlainString(),
-				credit == null ? "" : credit.stripTrailingZeros().toPlainString(),
-				normalize(description),
-				normalize(reference));
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			return HexFormat.of().formatHex(digest.digest(payload.getBytes(StandardCharsets.UTF_8)));
-		} catch (Exception ex) {
-			return Integer.toHexString(payload.hashCode());
-		}
-	}
-
-	private static String normalize(String value) {
-		return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+		String externalTxnId = cols.externalTransactionIdColumn() == null
+				? null
+				: safe(parts, cols.externalTransactionIdColumn());
+		String hash = BankTransactionFingerprint.fingerprint(
+				externalTxnId, txnDate, txnDate, debit, credit, description, reference, balance);
+		return new ParsedBankRow(
+				lineNumber, txnDate, txnDate, description, reference, debit, credit, balance, externalTxnId, hash);
 	}
 
 	private static LocalDate parseDate(String[] parts, int index, DateTimeFormatter[] formatters) {

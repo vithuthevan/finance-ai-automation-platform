@@ -4,13 +4,17 @@ import com.finance.platform.finance.domain.model.BankTransaction;
 import com.finance.platform.finance.domain.model.ReconciliationMatch;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public interface BankTransactionJpaRepository extends JpaRepository<BankTransaction, UUID> {
@@ -40,6 +44,16 @@ public interface BankTransactionJpaRepository extends JpaRepository<BankTransact
 
 	Optional<BankTransaction> findByIdAndClient_IdAndFirmId(UUID id, UUID clientId, UUID firmId);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select t from BankTransaction t
+			where t.id = :id and t.client.id = :clientId and t.firmId = :firmId
+			""")
+	Optional<BankTransaction> findByIdAndClient_IdAndFirmIdForUpdate(
+			@Param("id") UUID id,
+			@Param("clientId") UUID clientId,
+			@Param("firmId") UUID firmId);
+
 	@Query("""
 			select count(t) from BankTransaction t
 			where t.client.id = :clientId
@@ -66,6 +80,15 @@ public interface BankTransactionJpaRepository extends JpaRepository<BankTransact
 			@Param("status") BankTransaction.MatchStatus status);
 
 	boolean existsByBankAccount_IdAndExternalRowHash(UUID bankAccountId, String externalRowHash);
+
+	@Query("""
+			select t.externalRowHash from BankTransaction t
+			where t.bankAccount.id = :bankAccountId
+			  and t.externalRowHash in :hashes
+			""")
+	Set<String> findExternalRowHashesByBankAccount_IdAndExternalRowHashIn(
+			@Param("bankAccountId") UUID bankAccountId,
+			@Param("hashes") Collection<String> hashes);
 
 	@Query("""
 			select t from BankTransaction t

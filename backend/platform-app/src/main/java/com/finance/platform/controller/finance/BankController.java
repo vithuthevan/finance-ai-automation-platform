@@ -91,6 +91,7 @@ public class BankController {
 			@RequestParam(defaultValue = "4") int creditColumn,
 			@RequestParam(defaultValue = "5") int balanceColumn,
 			@RequestParam(required = false) Integer amountColumn,
+			@RequestParam(required = false) Integer externalTransactionIdColumn,
 			@RequestParam(defaultValue = "AUTO") String dateFormat,
 			@RequestParam(defaultValue = "true") boolean headerRow
 	) throws IOException {
@@ -100,7 +101,7 @@ public class BankController {
 				file.getBytes(),
 				new BankImportMappingRequest(
 						dateColumn, descriptionColumn, referenceColumn, debitColumn, creditColumn,
-						balanceColumn, amountColumn, dateFormat, headerRow, null).toMapping());
+						balanceColumn, amountColumn, externalTransactionIdColumn, dateFormat, headerRow, null).toMapping());
 	}
 
 	@PostMapping("/imports")
@@ -117,6 +118,7 @@ public class BankController {
 			@RequestParam(defaultValue = "4") int creditColumn,
 			@RequestParam(defaultValue = "5") int balanceColumn,
 			@RequestParam(required = false) Integer amountColumn,
+			@RequestParam(required = false) Integer externalTransactionIdColumn,
 			@RequestParam(defaultValue = "AUTO") String dateFormat,
 			@RequestParam(defaultValue = "true") boolean headerRow,
 			@RequestParam(required = false) String profileName
@@ -128,7 +130,7 @@ public class BankController {
 				file.getBytes(),
 				new BankImportMappingRequest(
 						dateColumn, descriptionColumn, referenceColumn, debitColumn, creditColumn,
-						balanceColumn, amountColumn, dateFormat, headerRow, profileName).toMapping(),
+						balanceColumn, amountColumn, externalTransactionIdColumn, dateFormat, headerRow, profileName).toMapping(),
 				profileName);
 	}
 
