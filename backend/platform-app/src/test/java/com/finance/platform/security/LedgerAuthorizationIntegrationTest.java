@@ -182,6 +182,7 @@ class LedgerAuthorizationIntegrationTest extends AbstractPostgresIntegrationTest
 		String ownerToken = createStaff("BUSINESS_OWNER", List.of(client.id()));
 		mockMvc.perform(post("/api/v1/clients/" + otherClient.id() + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(ownerToken))
+						.header(IDEMPOTENCY, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								LocalDate.now(),
@@ -193,12 +194,13 @@ class LedgerAuthorizationIntegrationTest extends AbstractPostgresIntegrationTest
 								null,
 								null
 						))))
-				.andExpect(status().isNotFound());
+				.andExpect(status().isForbidden());
 	}
 
 	private void postExpense(String token, org.springframework.test.web.servlet.ResultMatcher expected) throws Exception {
 		mockMvc.perform(post("/api/v1/clients/" + client.id() + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(token))
+						.header(IDEMPOTENCY, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								LocalDate.now(),
@@ -216,6 +218,7 @@ class LedgerAuthorizationIntegrationTest extends AbstractPostgresIntegrationTest
 	private void postIncome(String token, org.springframework.test.web.servlet.ResultMatcher expected) throws Exception {
 		mockMvc.perform(post("/api/v1/clients/" + client.id() + "/income")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(token))
+						.header(IDEMPOTENCY, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new IncomeRequest(
 								LocalDate.now(),
@@ -247,6 +250,7 @@ class LedgerAuthorizationIntegrationTest extends AbstractPostgresIntegrationTest
 	private ExpenseResponse createExpense(String token, UUID clientId, UUID categoryId) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(token))
+						.header(IDEMPOTENCY, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								LocalDate.now(),

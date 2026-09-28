@@ -49,3 +49,39 @@ tasks.named('test') {
 	jvmArgs '-Xmx1024m'
 	finalizedBy jacocoTestReport
 }
+
+def configurePostgresIntegrationTask(Test task) {
+	task.group = 'verification'
+	task.maxParallelForks = 1
+	task.jvmArgs '-Xmx1024m'
+	task.testClassesDirs = sourceSets.test.output.classesDirs
+	task.classpath = sourceSets.test.runtimeClasspath
+	task.useJUnitPlatform()
+	task.filter {
+		failOnNoMatchingTests = true
+	}
+}
+
+tasks.register('postgresIntegrationTest', Test) {
+	description = 'Spring integration tests against PostgreSQL (Testcontainers). Fails if Docker is unavailable.'
+	configurePostgresIntegrationTask(it)
+	useJUnitPlatform {
+		includeTags 'postgres-integration'
+	}
+}
+
+tasks.register('flywayIntegrationTest', Test) {
+	description = 'Applies all Flyway migrations on a clean PostgreSQL Testcontainer database.'
+	configurePostgresIntegrationTask(it)
+	useJUnitPlatform {
+		includeTags 'flyway'
+	}
+}
+
+tasks.register('tenantSecurityIntegrationTest', Test) {
+	description = 'Cross-tenant isolation and related security integration tests (includes AR tenant isolation).'
+	configurePostgresIntegrationTask(it)
+	useJUnitPlatform {
+		includeTags 'tenant-security'
+	}
+}

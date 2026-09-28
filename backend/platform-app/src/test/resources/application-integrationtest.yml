@@ -22,7 +22,7 @@ app:
     local:
       root: ${java.io.tmpdir}/finance-platform-test-storage
   ai:
-    enabled: false
+    enabled: true
     provider: mock
     extraction-provider: mock
   email:

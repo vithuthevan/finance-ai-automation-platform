@@ -68,7 +68,7 @@ class SubscriptionQuotaConcurrencyIntegrationTest extends AbstractPostgresIntegr
 
 	private int attemptCreate(String token, String name) {
 		try {
-			var status = mockMvc.perform(post("/api/v1/clients")
+			var status = createMockMvc().perform(post("/api/v1/clients")
 							.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(token))
 							.contentType(MediaType.APPLICATION_JSON)
 							.content("{\"name\":\"" + name + "\"}"))

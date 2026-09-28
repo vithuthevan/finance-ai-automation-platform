@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import com.finance.platform.support.AbstractPostgresIntegrationTest;
+import com.finance.platform.support.IntegrationTestSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -290,6 +291,7 @@ class CategoryCreationIntegrationTest extends AbstractPostgresIntegrationTest {
 
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/{clientId}/expenses", client.id())
 						.header(HttpHeaders.AUTHORIZATION, bearer(admin.token()))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								LocalDate.now().minusDays(1),

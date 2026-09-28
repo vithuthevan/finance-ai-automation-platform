@@ -39,6 +39,6 @@ class JwtSecurityIntegrationTest extends AbstractPostgresIntegrationTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
 								new LoginRequest(admin.email(), "wrong-password"))))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isUnprocessableEntity());
 	}
 }

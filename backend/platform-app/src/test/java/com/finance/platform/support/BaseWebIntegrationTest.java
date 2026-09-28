@@ -19,10 +19,14 @@ public abstract class BaseWebIntegrationTest {
 
 	protected MockMvc mockMvc;
 
-	@BeforeEach
-	void configureMockMvc() {
-		mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+	protected MockMvc createMockMvc() {
+		return MockMvcBuilders.webAppContextSetup(webApplicationContext)
 				.apply(SecurityMockMvcConfigurers.springSecurity())
 				.build();
+	}
+
+	@BeforeEach
+	void configureMockMvc() {
+		mockMvc = createMockMvc();
 	}
 }

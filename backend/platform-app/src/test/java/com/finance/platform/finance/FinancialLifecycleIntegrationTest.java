@@ -8,6 +8,7 @@ import com.finance.platform.finance.application.dto.ClientResponse;
 import com.finance.platform.finance.application.dto.CreateExpenseRequest;
 import com.finance.platform.finance.application.dto.ExpenseResponse;
 import com.finance.platform.support.AbstractPostgresIntegrationTest;
+import com.finance.platform.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -62,7 +63,8 @@ class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest 
 		assertThat(voided.status()).isEqualTo("VOID");
 
 		mockMvc.perform(post("/api/v1/clients/" + client.id() + "/expenses/" + draft.id() + "/approve")
-						.header(HttpHeaders.AUTHORIZATION, bearer(admin.token())))
+						.header(HttpHeaders.AUTHORIZATION, bearer(admin.token()))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey()))
 				.andExpect(status().isUnprocessableEntity());
 	}
 
@@ -153,6 +155,7 @@ class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest 
 			throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, bearer(token))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								LocalDate.now(),
@@ -171,7 +174,8 @@ class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest 
 
 	private ExpenseResponse approveExpense(String token, UUID clientId, UUID expenseId) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/expenses/" + expenseId + "/approve")
-						.header(HttpHeaders.AUTHORIZATION, bearer(token)))
+						.header(HttpHeaders.AUTHORIZATION, bearer(token))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey()))
 				.andExpect(status().isOk())
 				.andReturn();
 		return objectMapper.readValue(result.getResponse().getContentAsString(), ExpenseResponse.class);
@@ -180,6 +184,7 @@ class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest 
 	private ExpenseResponse voidExpense(String token, UUID clientId, UUID expenseId, String reason) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/expenses/" + expenseId + "/void")
 						.header(HttpHeaders.AUTHORIZATION, bearer(token))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"reason\":\"" + reason + "\"}"))
 				.andExpect(status().isOk())
@@ -191,6 +196,7 @@ class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest 
 			String token, UUID clientId, UUID categoryId, String amount) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/income")
 						.header(HttpHeaders.AUTHORIZATION, bearer(token))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -211,7 +217,8 @@ class FinancialLifecycleIntegrationTest extends AbstractPostgresIntegrationTest 
 	private com.finance.platform.finance.application.dto.IncomeResponse approveIncome(
 			String token, UUID clientId, UUID incomeId) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/income/" + incomeId + "/approve")
-						.header(HttpHeaders.AUTHORIZATION, bearer(token)))
+						.header(HttpHeaders.AUTHORIZATION, bearer(token))
+						.header(IntegrationTestSupport.IDEMPOTENCY_HEADER, IntegrationTestSupport.newIdempotencyKey()))
 				.andExpect(status().isOk())
 				.andReturn();
 		return objectMapper.readValue(result.getResponse().getContentAsString(),

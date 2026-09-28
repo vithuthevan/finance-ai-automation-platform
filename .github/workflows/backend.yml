@@ -22,5 +22,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Test and assemble backend
-        run: ./gradlew :platform-app:test :platform-app:bootJar --no-daemon
+      - name: Backend Unit Tests
+        run: ./gradlew :module-auth:test :module-finance:test --no-daemon
+      - name: Flyway Fresh-DB Validation
+        run: ./gradlew :platform-app:flywayIntegrationTest --no-daemon
+      - name: PostgreSQL Integration Tests
+        run: ./gradlew :platform-app:postgresIntegrationTest --no-daemon
+      - name: Tenant Security Tests
+        run: ./gradlew :platform-app:tenantSecurityIntegrationTest --no-daemon
+      - name: Assemble backend
+        run: ./gradlew :platform-app:bootJar --no-daemon

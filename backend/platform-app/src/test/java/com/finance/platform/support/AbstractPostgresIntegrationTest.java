@@ -2,16 +2,16 @@ package com.finance.platform.support;
 
 import com.finance.platform.auth.infrastructure.persistence.RoleJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.junit.jupiter.api.condition.EnabledIf;
 
 @SpringBootTest
 @ActiveProfiles("integrationtest")
-@EnabledIf("com.finance.platform.support.PostgresTestContainer#isDockerAvailable")
+@Tag(TestTags.POSTGRES_INTEGRATION)
 public abstract class AbstractPostgresIntegrationTest extends BaseWebIntegrationTest {
 
 	@Autowired

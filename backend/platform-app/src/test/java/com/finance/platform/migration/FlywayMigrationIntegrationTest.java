@@ -1,6 +1,8 @@
 package com.finance.platform.migration;
 
+import com.finance.platform.support.TestTags;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -8,7 +10,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
+@Tag(TestTags.FLYWAY)
+@Tag(TestTags.POSTGRES_INTEGRATION)
 class FlywayMigrationIntegrationTest {
 
 	@Container

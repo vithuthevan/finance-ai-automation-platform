@@ -105,6 +105,7 @@ class GoldenPathInvariantIntegrationTest extends AbstractPostgresIntegrationTest
 
 		mockMvc.perform(post("/api/v1/clients/" + client.id() + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(admin.token()))
+						.header(IDEMPOTENCY, UUID.randomUUID().toString())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								txnDate,
@@ -200,12 +201,16 @@ class GoldenPathInvariantIntegrationTest extends AbstractPostgresIntegrationTest
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(admin.token())))
 				.andExpect(status().isOk());
 
-		mockMvc.perform(multipart("/api/v1/clients/" + client.id() + "/bank/imports")
+		MvcResult duplicateResult = mockMvc.perform(multipart("/api/v1/clients/" + client.id() + "/bank/imports")
 						.file(file)
 						.param("bankAccountId", account.id().toString())
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(admin.token()))
 						.header(IDEMPOTENCY, UUID.randomUUID().toString()))
-				.andExpect(status().isUnprocessableEntity());
+				.andExpect(status().isCreated())
+				.andReturn();
+		BankImportResponse duplicateImport = support.read(duplicateResult, BankImportResponse.class);
+		assertThat(duplicateImport.importedCount()).isZero();
+		assertThat(duplicateImport.duplicateCount()).isEqualTo(1);
 
 		assertThat(listBankTransactions(client.id(), account.id())).hasSize(1);
 	}
@@ -231,6 +236,7 @@ class GoldenPathInvariantIntegrationTest extends AbstractPostgresIntegrationTest
 
 		mockMvc.perform(post("/api/v1/clients/" + client.id() + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(ownerToken))
+						.header(IDEMPOTENCY, UUID.randomUUID().toString())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								LocalDate.now(),
@@ -295,6 +301,7 @@ class GoldenPathInvariantIntegrationTest extends AbstractPostgresIntegrationTest
 			throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/v1/clients/" + clientId + "/expenses")
 						.header(HttpHeaders.AUTHORIZATION, IntegrationTestSupport.bearer(admin.token()))
+						.header(IDEMPOTENCY, UUID.randomUUID().toString())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(new CreateExpenseRequest(
 								date,
