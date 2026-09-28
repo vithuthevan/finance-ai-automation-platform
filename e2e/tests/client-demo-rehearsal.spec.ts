@@ -2,6 +2,7 @@ import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { loginAs, logout } from '../support/auth';
 import { ADMIN_EMAIL, OWNER_EMAIL } from '../support/constants';
+import { clickSidebarNav } from '../support/navigation';
 
 const BANK_CSV = path.resolve(__dirname, '../../demo/files/bank-sept.csv');
 const UTILITY_PDF = path.resolve(__dirname, '../../demo/files/utility-bill.pdf');
@@ -25,7 +26,7 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     await loginAs(page, ADMIN_EMAIL);
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 20000 });
 
-    await page.getByRole('link', { name: 'Documents' }).click();
+    await clickSidebarNav(page, '/app/documents');
     await expect(page).toHaveURL(/\/app\/documents/);
     await page.getByRole('button', { name: 'Review' }).click();
     await expect(page.getByRole('button', { name: 'Accept as draft' })).toBeVisible({ timeout: 15000 });
@@ -38,15 +39,15 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     await page.getByLabel('Party').fill('Keells Super');
     await expect(page.getByRole('button', { name: 'Accept as draft' })).toBeEnabled({ timeout: 5000 });
     await page.getByRole('button', { name: 'Accept as draft' }).click();
-    await expect(page.getByText(/draft/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Draft created from suggestion')).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Expenses' }).click();
+    await clickSidebarNav(page, '/app/expenses');
     await page.getByLabel('Status').click();
     await page.getByRole('option', { name: 'Draft' }).click();
     await page.getByRole('button', { name: 'Approve' }).first().click();
     await expect(page.getByText('APPROVED').first()).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Income' }).click();
+    await clickSidebarNav(page, '/app/income');
     const incomeDraft = page.locator('section.card-block').filter({ hasText: 'Create draft' });
     await incomeDraft.getByLabel('Date').fill('9/8/2026');
     await incomeDraft.getByLabel('Category').click();
@@ -61,7 +62,7 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     await page.getByRole('button', { name: 'Approve' }).first().click();
     await expect(page.getByText('APPROVED').first()).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Expenses' }).click();
+    await clickSidebarNav(page, '/app/expenses');
     const expDraft = page.locator('section.card-block').filter({ hasText: 'Create draft' });
     await expDraft.getByLabel('Date').fill('9/10/2026');
     await expDraft.getByLabel('Category').click();
@@ -74,7 +75,7 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     await page.getByRole('button', { name: 'Approve' }).first().click();
     await expect(page.getByText('APPROVED').first()).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Banking' }).click();
+    await clickSidebarNav(page, '/app/banking');
     await page.getByRole('tab', { name: 'Import' }).click();
     await page.locator('input[type="file"]').setInputFiles(BANK_CSV);
     await page.getByRole('button', { name: 'Preview' }).click();
@@ -98,7 +99,7 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     const reconCard = page.locator('.metric-card').filter({ hasText: 'Reconciliation' }).locator('.value');
     await expect(reconCard).toHaveText('100%', { timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Close' }).click();
+    await clickSidebarNav(page, '/app/close');
     await page.getByLabel('Month').click();
     await page.getByRole('option', { name: 'September' }).click();
     await page.getByRole('button', { name: 'Refresh' }).click();
@@ -115,7 +116,7 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
 
     await logout(page);
     await loginAs(page, ADMIN_EMAIL);
-    await page.getByRole('link', { name: 'Close' }).click();
+    await clickSidebarNav(page, '/app/close');
     await page.getByLabel('Month').click();
     await page.getByRole('option', { name: 'September' }).click();
     await page.getByRole('button', { name: 'Refresh' }).click();
@@ -126,7 +127,7 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     await page.getByRole('button', { name: 'Close period' }).click();
     await expect(page.getByText('CLOSED')).toBeVisible({ timeout: 20000 });
 
-    await page.getByRole('link', { name: 'Expenses' }).click();
+    await clickSidebarNav(page, '/app/expenses');
     const expDraft2 = page.locator('section.card-block').filter({ hasText: 'Create draft' });
     await expDraft2.getByLabel('Date').fill('9/15/2026');
     await expDraft2.getByLabel('Category').click();
@@ -136,13 +137,13 @@ test.describe('Client demo rehearsal (Harbor Ledger / Cedar Café)', () => {
     await expDraft2.getByRole('button', { name: 'Create draft' }).click();
     await expect(page.getByText(/period|closed/i).first()).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Reports' }).click();
+    await clickSidebarNav(page, '/app/reports');
     await page.getByLabel('Client').click();
     await page.getByRole('option', { name: /Cedar Café/i }).click();
     await page.getByRole('button', { name: 'Run' }).click();
     await expect(page.getByText('18,500').or(page.getByText('18500'))).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Audit log' }).click();
+    await clickSidebarNav(page, '/app/audit');
     await expect(page).toHaveURL(/\/app\/audit/);
 
     expect(serverErrors, `Unexpected 5xx or page errors: ${serverErrors.join('; ')}`).toEqual([]);

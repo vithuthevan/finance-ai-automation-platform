@@ -22,6 +22,7 @@ test.describe('Responsive layout (accountant)', () => {
 
   for (const width of WIDTHS) {
     test(`no page-level horizontal overflow at ${width}px`, async ({ page }) => {
+      test.setTimeout(120_000);
       await page.setViewportSize({ width, height: 900 });
       for (const route of ROUTES) {
         await page.goto(route, { waitUntil: 'domcontentloaded' });

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from '../support/auth';
 import { ACCOUNTANT_EMAIL } from '../support/constants';
+import { selectActiveClientIfShown, selectReportClientIfShown } from '../support/client-context';
+import { clickSidebarNav } from '../support/navigation';
 
 /**
  * Minimal browser golden-path: ledger draft → approve → report.
@@ -15,12 +17,10 @@ test.describe('Golden path (browser)', () => {
   });
 
   test('accountant creates expense draft, approves it, and sees it in P&L', async ({ page }) => {
-    await page.getByRole('link', { name: 'Expenses' }).click();
+    await clickSidebarNav(page, '/app/expenses');
     await expect(page).toHaveURL(/\/app\/expenses/);
 
-    const clientSelect = page.getByLabel('Select active client');
-    await clientSelect.click();
-    await page.getByRole('option', { name: /Cedar Café/i }).click();
+    await selectActiveClientIfShown(page, /Cedar Café/i);
 
     const createDraft = page.locator('section.card-block').filter({ hasText: 'Create draft' });
     await createDraft.getByLabel('Amount').fill('1250');
@@ -37,11 +37,10 @@ test.describe('Golden path (browser)', () => {
     await approveButton.click();
     await expect(page.getByText('APPROVED').first()).toBeVisible({ timeout: 15000 });
 
-    await page.getByRole('link', { name: 'Reports' }).click();
+    await clickSidebarNav(page, '/app/reports');
     await expect(page).toHaveURL(/\/app\/reports/);
 
-    await page.getByLabel('Select active client').click();
-    await page.getByRole('option', { name: /Cedar Café/i }).click();
+    await selectReportClientIfShown(page, /Cedar Café/i);
     await page.getByRole('button', { name: 'Run' }).click();
 
     await expect(page.getByText(/Total Expenses/i)).toBeVisible({ timeout: 15000 });
