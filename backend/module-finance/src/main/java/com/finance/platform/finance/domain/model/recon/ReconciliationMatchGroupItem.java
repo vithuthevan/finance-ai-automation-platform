@@ -52,4 +52,8 @@ public class ReconciliationMatchGroupItem extends BaseEntity {
 
 	@Column(name = "allocated_amount", precision = 19, scale = 4)
 	private BigDecimal allocatedAmount;
+
+	@Column(name = "bank_claim_active", nullable = false)
+	@Builder.Default
+	private boolean bankClaimActive = false;
 }

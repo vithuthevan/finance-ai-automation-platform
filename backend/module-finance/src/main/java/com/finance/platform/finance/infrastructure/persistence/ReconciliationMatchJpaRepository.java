@@ -31,4 +31,14 @@ public interface ReconciliationMatchJpaRepository extends JpaRepository<Reconcil
 			    or (m.income.id = :incomeId and :incomeId is not null))
 			""")
 	boolean isLedgerEntryMatched(@Param("expenseId") UUID expenseId, @Param("incomeId") UUID incomeId);
+
+	boolean existsByBankTransaction_IdAndStatus(UUID bankTransactionId, ReconciliationMatch.MatchStatus status);
+
+	@Query("""
+			select m from ReconciliationMatch m
+			join fetch m.bankTransaction
+			where m.expense.id = :expenseId
+			  and m.status = com.finance.platform.finance.domain.model.ReconciliationMatch$MatchStatus.CONFIRMED
+			""")
+	java.util.List<ReconciliationMatch> findConfirmedByExpenseId(@Param("expenseId") UUID expenseId);
 }

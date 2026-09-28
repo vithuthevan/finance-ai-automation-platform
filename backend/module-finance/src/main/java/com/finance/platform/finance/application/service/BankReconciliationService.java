@@ -12,6 +12,7 @@ import com.finance.platform.core.exception.ResourceNotFoundException;
 import com.finance.platform.core.exception.ValidationException;
 import com.finance.platform.core.storage.FileStorageService;
 import com.finance.platform.finance.application.bankimport.BankStatementImporter;
+import com.finance.platform.finance.application.bankimport.BankTransactionFingerprint;
 import com.finance.platform.finance.application.bankimport.CsvColumnMapping;
 import com.finance.platform.finance.application.bankimport.ImportParseResult;
 import com.finance.platform.finance.application.bankimport.ImportPreview;
@@ -33,6 +34,7 @@ import com.finance.platform.finance.domain.model.BankAccount;
 import com.finance.platform.finance.domain.model.BankImport;
 import com.finance.platform.finance.domain.model.BankImportProfile;
 import com.finance.platform.finance.domain.model.BankTransaction;
+import com.finance.platform.finance.domain.model.BankTransactionLedgerGeneration;
 import com.finance.platform.finance.domain.model.Client;
 import com.finance.platform.finance.domain.model.DocumentRequest;
 import com.finance.platform.finance.domain.model.Expense;
@@ -41,15 +43,19 @@ import com.finance.platform.finance.domain.model.Receipt;
 import com.finance.platform.finance.application.dto.invoicing.AllocatePaymentRequest;
 import com.finance.platform.finance.application.dto.invoicing.ArPaymentResponse;
 import com.finance.platform.finance.application.dto.invoicing.PaymentAllocationItemRequest;
+import com.finance.platform.finance.application.dto.invoicing.ReversePaymentRequest;
 import com.finance.platform.finance.application.invoicing.MoneyMath;
 import com.finance.platform.finance.application.service.invoicing.ArPaymentService;
 import com.finance.platform.finance.domain.model.ReconciliationMatch;
+import com.finance.platform.finance.domain.model.invoicing.ArPayment;
 import com.finance.platform.finance.domain.model.recon.ReconciliationMatchGroup;
 import com.finance.platform.finance.domain.model.recon.ReconciliationMatchGroupItem;
 import com.finance.platform.finance.domain.model.TransactionStatus;
+import com.finance.platform.finance.infrastructure.persistence.ArPaymentJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.BankImportJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.BankImportProfileJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.BankTransactionJpaRepository;
+import com.finance.platform.finance.infrastructure.persistence.BankTransactionLedgerGenerationJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ExpenseJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.IncomeJpaRepository;
 import com.finance.platform.finance.application.workflow.PeriodReadinessNotifier;
@@ -71,10 +77,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -102,6 +111,10 @@ public class BankReconciliationService {
 	private final ReconciliationMatchGroupJpaRepository matchGroupRepository;
 	private final ReconciliationMatchGroupItemJpaRepository matchGroupItemRepository;
 	private final PeriodReadinessNotifier periodReadinessNotifier;
+	private final BankImportTransactionWriter bankImportTransactionWriter;
+	private final BankImportBatchWriter bankImportBatchWriter;
+	private final BankTransactionLedgerGenerationJpaRepository ledgerGenerationRepository;
+	private final ArPaymentJpaRepository arPaymentRepository;
 
 	@Transactional(readOnly = true)
 	public BankImportPreviewResponse previewImport(UUID clientId, UUID bankAccountId, byte[] content, CsvColumnMapping mapping) {
@@ -111,7 +124,7 @@ public class BankReconciliationService {
 		return BankImportPreviewResponse.from(preview);
 	}
 
-	@Transactional
+	@Transactional(noRollbackFor = DataIntegrityViolationException.class)
 	public BankImportResponse importCsv(
 			UUID clientId,
 			UUID bankAccountId,
@@ -126,10 +139,6 @@ public class BankReconciliationService {
 			throw new ValidationException("file", "CSV content is required");
 		}
 		String checksum = sha256(content);
-		importRepository.findByBankAccount_IdAndChecksum(bankAccountId, checksum).ifPresent(existing -> {
-			throw new BusinessException(ErrorCodes.BANK_IMPORT_DUPLICATE,
-					"This statement file was already imported for this bank account");
-		});
 		if (profileName != null && !profileName.isBlank()) {
 			saveProfile(client, account, mapping, profileName.trim());
 		}
@@ -137,9 +146,6 @@ public class BankReconciliationService {
 		if (parsed.validRows().isEmpty()) {
 			throw new BusinessException(ErrorCodes.BANK_IMPORT_INVALID, "No valid rows found in the statement");
 		}
-		String storageKey = "firms/" + client.getFirmId() + "/clients/" + client.getId() + "/bank/" + UUID.randomUUID() + ".csv";
-		fileStorageService.store(storageKey, content, "text/csv");
-
 		LocalDate periodFrom = null;
 		LocalDate periodTo = null;
 		for (ParsedBankRow row : parsed.validRows()) {
@@ -151,65 +157,164 @@ public class BankReconciliationService {
 			}
 		}
 
-		BankImport batch = BankImport.builder()
-				.client(client)
-				.bankAccount(account)
-				.uploadedBy(clientAccessService.requireCurrentUserEntity())
-				.fileName(fileName == null ? "statement.csv" : fileName)
-				.storageKey(storageKey)
-				.checksum(checksum)
-				.periodFrom(periodFrom)
-				.periodTo(periodTo)
-				.importStatus(BankImport.ImportStatus.IMPORTED)
-				.status("IMPORTED")
-				.build();
-		batch.setFirmId(client.getFirmId());
-		try {
-			batch = importRepository.save(batch);
-		} catch (DataIntegrityViolationException ex) {
-			throw new BusinessException(ErrorCodes.BANK_IMPORT_DUPLICATE,
-					"This statement file was already imported for this bank account");
+		Optional<BankImport> priorIdenticalFile = bankImportBatchWriter.findByAccountAndChecksum(bankAccountId, checksum);
+		boolean identicalFileReplay = priorIdenticalFile.isPresent();
+		BankImport batch;
+		if (identicalFileReplay) {
+			batch = priorIdenticalFile.get();
+		} else {
+			String storageKey = "firms/" + client.getFirmId() + "/clients/" + client.getId() + "/bank/" + UUID.randomUUID() + ".csv";
+			fileStorageService.store(storageKey, content, "text/csv");
+			batch = BankImport.builder()
+					.client(client)
+					.bankAccount(account)
+					.uploadedBy(clientAccessService.requireCurrentUserEntity())
+					.fileName(fileName == null ? "statement.csv" : fileName)
+					.storageKey(storageKey)
+					.checksum(checksum)
+					.periodFrom(periodFrom)
+					.periodTo(periodTo)
+					.importStatus(BankImport.ImportStatus.IMPORTED)
+					.status("IMPORTED")
+					.build();
+			batch.setFirmId(client.getFirmId());
+			BankImport persisted = bankImportBatchWriter.tryPersist(batch);
+			if (persisted == null) {
+				batch = bankImportBatchWriter.findByAccountAndChecksum(bankAccountId, checksum)
+						.orElseThrow(() -> new BusinessException(ErrorCodes.BANK_IMPORT_DUPLICATE,
+								"This statement file was already imported for this bank account"));
+				identicalFileReplay = true;
+			} else {
+				batch = importRepository.findById(persisted.getId())
+						.orElseThrow(() -> new ResourceNotFoundException("BankImport", persisted.getId()));
+			}
 		}
+
+		Set<String> lookupHashes = new HashSet<>();
+		for (ParsedBankRow row : parsed.validRows()) {
+			lookupHashes.add(row.rowHash());
+			lookupHashes.add(legacyRowHash(row));
+		}
+		Set<String> existingHashes = lookupHashes.isEmpty()
+				? Set.of()
+				: bankTransactionRepository.findExternalRowHashesByBankAccount_IdAndExternalRowHashIn(
+						bankAccountId, lookupHashes);
+		Set<String> seenThisImport = new HashSet<>();
 
 		int imported = 0;
 		int duplicates = 0;
 		int failed = parsed.errors().size();
 		for (ParsedBankRow row : parsed.validRows()) {
 			String rowHash = row.rowHash();
-			if (bankTransactionRepository.existsByBankAccount_IdAndExternalRowHash(bankAccountId, rowHash)) {
+			String legacyHash = legacyRowHash(row);
+			if (isDuplicateRow(rowHash, legacyHash, existingHashes, seenThisImport)) {
 				duplicates++;
 				continue;
 			}
 			BankTransaction txn = toEntity(client, account, batch, row, rowHash);
+			BankTransaction persistedTxn;
 			try {
-				txn = bankTransactionRepository.save(txn);
+				persistedTxn = bankImportTransactionWriter.tryPersist(txn);
+			} catch (DataIntegrityViolationException ex) {
+				persistedTxn = null;
+			}
+			if (persistedTxn == null) {
+				duplicates++;
+				existingHashes.add(rowHash);
+				existingHashes.add(legacyHash);
+				continue;
+			}
+			UUID persistedTxnId = persistedTxn.getId();
+			seenThisImport.add(rowHash);
+			seenThisImport.add(legacyHash);
+			existingHashes.add(rowHash);
+			BankTransaction managedTxn = bankTransactionRepository.findById(persistedTxnId)
+					.orElseThrow(() -> new ResourceNotFoundException("BankTransaction", persistedTxnId));
+			try {
+				generateSuggestions(managedTxn);
 			} catch (DataIntegrityViolationException ex) {
 				duplicates++;
 				continue;
 			}
-			generateSuggestions(txn);
 			imported++;
 		}
-		batch.setRowCount(parsed.validRows().size() + failed);
-		batch.setImportedCount(imported);
-		batch.setDuplicateCount(duplicates);
-		batch.setFailedCount(failed);
-		batch.setCompletedAt(Instant.now());
-		BankImport saved = importRepository.save(batch);
+
+		if (!identicalFileReplay) {
+			batch.setRowCount(parsed.validRows().size() + failed);
+			batch.setImportedCount(imported);
+			batch.setDuplicateCount(duplicates);
+			batch.setFailedCount(failed);
+			batch.setCompletedAt(Instant.now());
+			batch = importRepository.save(batch);
+		}
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(client.getFirmId())
 				.action(AuditAction.BANK_IMPORT_COMPLETED)
 				.resourceType(AuditResourceType.BANK)
-				.resourceId(saved.getId())
+				.resourceId(batch.getId())
 				.clientId(clientId)
 				.afterState(Map.of(
 						"imported", imported,
 						"duplicates", duplicates,
-						"failed", failed))
+						"failed", failed,
+						"identicalFileReplay", identicalFileReplay))
 				.build());
-		workflowNotificationService.bankImportCompleted(client.getFirmId(), clientId, saved.getId());
-		periodReadinessNotifier.checkAndNotify(client.getFirmId(), clientId);
-		return BankImportResponse.from(saved);
+		if (!identicalFileReplay) {
+			workflowNotificationService.bankImportCompleted(client.getFirmId(), clientId, batch.getId());
+			periodReadinessNotifier.checkAndNotify(client.getFirmId(), clientId);
+		}
+		if (identicalFileReplay) {
+			return idempotentFileReplayResponse(batch, clientId, bankAccountId, parsed, imported, duplicates, failed);
+		}
+		return BankImportResponse.from(batch);
+	}
+
+	private static boolean isDuplicateRow(
+			String rowHash,
+			String legacyHash,
+			Set<String> existingHashes,
+			Set<String> seenThisImport
+	) {
+		return existingHashes.contains(rowHash)
+				|| existingHashes.contains(legacyHash)
+				|| !seenThisImport.add(rowHash);
+	}
+
+	private static String legacyRowHash(ParsedBankRow row) {
+		return BankTransactionFingerprint.legacyHeuristicFingerprint(
+				row.txnDate(),
+				row.valueDate(),
+				row.debit(),
+				row.credit(),
+				row.description(),
+				row.referenceNo());
+	}
+
+	private static BankImportResponse idempotentFileReplayResponse(
+			BankImport priorBatch,
+			UUID clientId,
+			UUID bankAccountId,
+			ImportParseResult parsed,
+			int imported,
+			int duplicates,
+			int failed
+	) {
+		return new BankImportResponse(
+				priorBatch.getId(),
+				clientId,
+				bankAccountId,
+				priorBatch.getFileName(),
+				priorBatch.getChecksum(),
+				priorBatch.getPeriodFrom(),
+				priorBatch.getPeriodTo(),
+				priorBatch.getImportStatus(),
+				parsed.validRows().size() + failed,
+				imported,
+				duplicates,
+				failed,
+				priorBatch.getErrorMessage(),
+				priorBatch.getCreatedAt(),
+				priorBatch.getCompletedAt());
 	}
 
 	@Transactional(readOnly = true)
@@ -286,11 +391,9 @@ public class BankReconciliationService {
 	@Transactional
 	public BankTransactionResponse confirmMatch(UUID clientId, UUID bankTransactionId, UUID expenseId, UUID incomeId) {
 		clientAccessService.requireApproveAccess(clientId);
-		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		BankTransaction bank = requireBankForUpdate(clientId, bankTransactionId);
 		assertReconciliationWritable(clientId, bank.getTxnDate());
-		if (bank.getMatchStatus() == BankTransaction.MatchStatus.MATCHED) {
-			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
-		}
+		assertBankAvailableForLedgerMatch(bank, expenseId, incomeId);
 		ReconciliationMatch match = ReconciliationMatch.builder()
 				.client(bank.getClient())
 				.bankTransaction(bank)
@@ -322,7 +425,7 @@ public class BankReconciliationService {
 			throw new ValidationException("A matching expense or income is required");
 		}
 		rejectOpenSuggestions(bank);
-		matchRepository.save(match);
+		persistConfirmedMatch(match);
 		bank.setMatchStatus(BankTransaction.MatchStatus.MATCHED);
 		bank.setPendingExpenseId(null);
 		bank.setPendingIncomeId(null);
@@ -344,11 +447,12 @@ public class BankReconciliationService {
 			ConfirmBankInvoicePaymentRequest request
 	) {
 		clientAccessService.requireApproveAccess(clientId);
-		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		BankTransaction bank = requireBankForUpdate(clientId, bankTransactionId);
 		assertReconciliationWritable(clientId, bank.getTxnDate());
 		if (bank.getMatchStatus() == BankTransaction.MatchStatus.MATCHED) {
 			return toResponse(bank);
 		}
+		assertBankAvailableForInvoicePayment(bank);
 		validateDirection(bank, false);
 		BigDecimal bankAmount = bank.absoluteAmount();
 		List<PaymentAllocationItemRequest> allocations = request.allocations() == null
@@ -380,10 +484,15 @@ public class BankReconciliationService {
 				.build();
 		group.setFirmId(bank.getFirmId());
 		group = matchGroupRepository.save(group);
-		matchGroupItemRepository.save(ReconciliationMatchGroupItem.builder()
-				.group(group)
-				.bankTransaction(bank)
-				.build());
+		try {
+			matchGroupItemRepository.saveAndFlush(ReconciliationMatchGroupItem.builder()
+					.group(group)
+					.bankTransaction(bank)
+					.bankClaimActive(true)
+					.build());
+		} catch (DataIntegrityViolationException ex) {
+			throw translateReconciliationUniqueViolation(ex);
+		}
 		matchGroupItemRepository.save(ReconciliationMatchGroupItem.builder()
 				.group(group)
 				.paymentId(payment.id())
@@ -443,8 +552,11 @@ public class BankReconciliationService {
 	@Transactional
 	public BankTransactionResponse unmatch(UUID clientId, UUID bankTransactionId) {
 		clientAccessService.requireApproveAccess(clientId);
-		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		BankTransaction bank = requireBankForUpdate(clientId, bankTransactionId);
 		assertReconciliationWritable(clientId, bank.getTxnDate());
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		UUID reversedPaymentId = reverseActiveInvoicePaymentForBank(clientId, firmId, bankTransactionId);
+		releaseActiveInvoiceMatchGroup(firmId, bankTransactionId);
 		for (ReconciliationMatch match : matchRepository.findByBankTransaction_Id(bankTransactionId)) {
 			if (match.getStatus() == ReconciliationMatch.MatchStatus.CONFIRMED) {
 				match.setStatus(ReconciliationMatch.MatchStatus.REJECTED);
@@ -453,16 +565,37 @@ public class BankReconciliationService {
 			}
 		}
 		bank.setMatchStatus(BankTransaction.MatchStatus.UNMATCHED);
+		bank.setPendingExpenseId(null);
+		bank.setPendingIncomeId(null);
 		BankTransaction saved = bankTransactionRepository.save(bank);
 		generateSuggestions(saved);
+		Map<String, Object> auditMeta = new LinkedHashMap<>();
+		if (reversedPaymentId != null) {
+			auditMeta.put("event", "bank_invoice_payment_reversed");
+			auditMeta.put("paymentId", reversedPaymentId.toString());
+		}
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(bank.getFirmId())
 				.action(AuditAction.RECONCILIATION_REMOVED)
 				.resourceType(AuditResourceType.BANK)
 				.resourceId(bank.getId())
 				.clientId(clientId)
+				.metadata(auditMeta.isEmpty() ? null : auditMeta)
 				.build());
 		return toResponse(saved);
+	}
+
+	/**
+	 * When a reconciled ledger entry is voided, release confirmed bank matches so close readiness stays consistent.
+	 */
+	@Transactional
+	public void releaseConfirmedMatchesForVoidedExpense(UUID clientId, UUID expenseId) {
+		for (ReconciliationMatch match : matchRepository.findConfirmedByExpenseId(expenseId)) {
+			if (match.getBankTransaction() == null) {
+				continue;
+			}
+			unmatch(clientId, match.getBankTransaction().getId());
+		}
 	}
 
 	@Transactional
@@ -471,7 +604,7 @@ public class BankReconciliationService {
 		if (reason == null || reason.isBlank()) {
 			throw new ValidationException("reason", "An ignore reason is required");
 		}
-		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		BankTransaction bank = requireBankForUpdate(clientId, bankTransactionId);
 		assertReconciliationWritable(clientId, bank.getTxnDate());
 		rejectOpenSuggestions(bank);
 		bank.setMatchStatus(BankTransaction.MatchStatus.IGNORED);
@@ -491,9 +624,12 @@ public class BankReconciliationService {
 	@Transactional
 	public ExpenseResponse createExpenseFromBank(UUID clientId, UUID bankTransactionId, CreateExpenseFromBankRequest request) {
 		clientAccessService.requireApproveAccess(clientId);
-		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		BankTransaction bank = requireBankForUpdate(clientId, bankTransactionId);
 		assertReconciliationWritable(clientId, bank.getTxnDate());
+		assertEligibleForLedgerGeneration(bank);
 		validateDirection(bank, true);
+		assertNoLedgerGeneration(bank.getId());
+		rejectOpenSuggestions(bank);
 		ExpenseResponse created = expenseService.create(clientId, new CreateExpenseRequest(
 				bank.getTxnDate(),
 				request.categoryId(),
@@ -505,7 +641,9 @@ public class BankReconciliationService {
 				request.description() == null ? bank.getDescription() : request.description(),
 				null,
 				bank.getReferenceNo()));
+		persistLedgerGeneration(bank, BankTransactionLedgerGeneration.LedgerKind.EXPENSE, created.id(), null);
 		bank.setPendingExpenseId(created.id());
+		bank.setPendingIncomeId(null);
 		bank.setMatchStatus(BankTransaction.MatchStatus.PENDING_APPROVAL);
 		bankTransactionRepository.save(bank);
 		auditLogger.record(AuditEvent.fromTenant()
@@ -522,9 +660,12 @@ public class BankReconciliationService {
 	@Transactional
 	public IncomeResponse createIncomeFromBank(UUID clientId, UUID bankTransactionId, CreateIncomeFromBankRequest request) {
 		clientAccessService.requireApproveAccess(clientId);
-		BankTransaction bank = requireBank(clientId, bankTransactionId);
+		BankTransaction bank = requireBankForUpdate(clientId, bankTransactionId);
 		assertReconciliationWritable(clientId, bank.getTxnDate());
+		assertEligibleForLedgerGeneration(bank);
 		validateDirection(bank, false);
+		assertNoLedgerGeneration(bank.getId());
+		rejectOpenSuggestions(bank);
 		IncomeResponse created = incomeService.create(clientId, new IncomeRequest(
 				bank.getTxnDate(),
 				request.categoryId(),
@@ -537,7 +678,9 @@ public class BankReconciliationService {
 				null,
 				null,
 				bank.getReferenceNo()));
+		persistLedgerGeneration(bank, BankTransactionLedgerGeneration.LedgerKind.INCOME, null, created.id());
 		bank.setPendingIncomeId(created.id());
+		bank.setPendingExpenseId(null);
 		bank.setMatchStatus(BankTransaction.MatchStatus.PENDING_APPROVAL);
 		bankTransactionRepository.save(bank);
 		auditLogger.record(AuditEvent.fromTenant()
@@ -645,8 +788,229 @@ public class BankReconciliationService {
 				.orElseThrow(() -> new ResourceNotFoundException("Bank transaction", id));
 	}
 
+	private BankTransaction requireBankForUpdate(UUID clientId, UUID id) {
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		return bankTransactionRepository.findByIdAndClient_IdAndFirmIdForUpdate(id, clientId, firmId)
+				.orElseThrow(() -> new ResourceNotFoundException("Bank transaction", id));
+	}
+
+	private void assertEligibleForLedgerGeneration(BankTransaction bank) {
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.MATCHED) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.IGNORED) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+					"Ignored bank transactions cannot generate ledger entries");
+		}
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.PENDING_APPROVAL) {
+			throw alreadyConvertedFromBankState(bank);
+		}
+	}
+
+	private void assertNoLedgerGeneration(UUID bankTransactionId) {
+		ledgerGenerationRepository.findFetchedByBankTransaction_Id(bankTransactionId).ifPresent(existing -> {
+			throw alreadyConverted(existing);
+		});
+	}
+
+	private void persistLedgerGeneration(
+			BankTransaction bank,
+			BankTransactionLedgerGeneration.LedgerKind kind,
+			UUID expenseId,
+			UUID incomeId
+	) {
+		Expense expense = null;
+		Income income = null;
+		UUID firmId = bank.getFirmId();
+		if (kind == BankTransactionLedgerGeneration.LedgerKind.EXPENSE) {
+			expense = expenseRepository.findByIdAndClient_IdAndFirmId(expenseId, bank.getClient().getId(), firmId)
+					.orElseThrow(() -> new ResourceNotFoundException("Expense", expenseId));
+		} else {
+			income = incomeRepository.findByIdAndClient_IdAndFirmId(incomeId, bank.getClient().getId(), firmId)
+					.orElseThrow(() -> new ResourceNotFoundException("Income", incomeId));
+		}
+		BankTransactionLedgerGeneration row = BankTransactionLedgerGeneration.builder()
+				.client(bank.getClient())
+				.bankTransaction(bank)
+				.ledgerKind(kind)
+				.expense(expense)
+				.income(income)
+				.build();
+		row.setFirmId(firmId);
+		try {
+			ledgerGenerationRepository.saveAndFlush(row);
+		} catch (DataIntegrityViolationException ex) {
+			ledgerGenerationRepository.findFetchedByBankTransaction_Id(bank.getId())
+					.ifPresentOrElse(
+							generation -> {
+								throw alreadyConverted(generation);
+							},
+							() -> {
+								throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+										"This bank transaction already generated a ledger entry");
+							});
+		}
+	}
+
+	private BusinessException alreadyConverted(BankTransactionLedgerGeneration generation) {
+		String entityType = generation.getLedgerKind().name();
+		UUID entityId = generation.getLedgerKind() == BankTransactionLedgerGeneration.LedgerKind.EXPENSE
+				? generation.getExpense().getId()
+				: generation.getIncome().getId();
+		return new BusinessException(
+				ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+				"This bank transaction already generated a ledger entry",
+				Map.of(
+						"bankTransactionId", generation.getBankTransaction().getId(),
+						"existingEntityType", entityType,
+						"existingEntityId", entityId));
+	}
+
+	private BusinessException alreadyConvertedFromBankState(BankTransaction bank) {
+		if (bank.getPendingExpenseId() != null) {
+			return new BusinessException(
+					ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+					"This bank transaction already generated a ledger entry",
+					Map.of(
+							"bankTransactionId", bank.getId(),
+							"existingEntityType", "EXPENSE",
+							"existingEntityId", bank.getPendingExpenseId()));
+		}
+		if (bank.getPendingIncomeId() != null) {
+			return new BusinessException(
+					ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+					"This bank transaction already generated a ledger entry",
+					Map.of(
+							"bankTransactionId", bank.getId(),
+							"existingEntityType", "INCOME",
+							"existingEntityId", bank.getPendingIncomeId()));
+		}
+		return new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+				"This bank transaction already generated a ledger entry",
+				Map.of("bankTransactionId", bank.getId()));
+	}
+
 	private void assertReconciliationWritable(UUID clientId, LocalDate txnDate) {
 		periodCloseService.assertPeriodOpen(clientId, txnDate);
+	}
+
+	private void assertBankAvailableForLedgerMatch(BankTransaction bank, UUID expenseId, UUID incomeId) {
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.MATCHED) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.IGNORED) {
+			throw new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT, "Ignored bank transactions cannot be reconciled");
+		}
+		assertNoCrossPathBankConsumption(bank);
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.PENDING_APPROVAL) {
+			if (expenseId != null && !expenseId.equals(bank.getPendingExpenseId())) {
+				throw new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT,
+						"Bank transaction is pending approval for a different ledger entry");
+			}
+			if (incomeId != null && !incomeId.equals(bank.getPendingIncomeId())) {
+				throw new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT,
+						"Bank transaction is pending approval for a different ledger entry");
+			}
+		}
+		ledgerGenerationRepository.findFetchedByBankTransaction_Id(bank.getId()).ifPresent(generation -> {
+			if (expenseId != null
+					&& generation.getLedgerKind() == BankTransactionLedgerGeneration.LedgerKind.EXPENSE
+					&& generation.getExpense() != null
+					&& expenseId.equals(generation.getExpense().getId())) {
+				return;
+			}
+			if (incomeId != null
+					&& generation.getLedgerKind() == BankTransactionLedgerGeneration.LedgerKind.INCOME
+					&& generation.getIncome() != null
+					&& incomeId.equals(generation.getIncome().getId())) {
+				return;
+			}
+			throw alreadyConverted(generation);
+		});
+	}
+
+	private void assertBankAvailableForInvoicePayment(BankTransaction bank) {
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.IGNORED) {
+			throw new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT, "Ignored bank transactions cannot be reconciled");
+		}
+		if (bank.getMatchStatus() == BankTransaction.MatchStatus.PENDING_APPROVAL) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_CONVERTED,
+					"This bank transaction already generated a ledger entry");
+		}
+		assertNoCrossPathBankConsumption(bank);
+		ledgerGenerationRepository.findFetchedByBankTransaction_Id(bank.getId()).ifPresent(this::alreadyConvertedAndThrow);
+	}
+
+	private void assertNoCrossPathBankConsumption(BankTransaction bank) {
+		UUID firmId = bank.getFirmId();
+		if (matchRepository.existsByBankTransaction_IdAndStatus(
+				bank.getId(), ReconciliationMatch.MatchStatus.CONFIRMED)) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+		if (arPaymentRepository.existsByFirmIdAndBankTransactionIdAndStatusNot(
+				firmId, bank.getId(), ArPayment.Status.REVERSED)) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+		if (matchGroupItemRepository.existsByBankTransaction_IdAndBankClaimActiveTrue(bank.getId())) {
+			throw new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+	}
+
+	private UUID reverseActiveInvoicePaymentForBank(UUID clientId, UUID firmId, UUID bankTransactionId) {
+		return arPaymentRepository.findByFirmIdAndBankTransactionIdAndStatusNot(
+						firmId, bankTransactionId, ArPayment.Status.REVERSED)
+				.map(payment -> {
+					periodCloseService.assertPeriodOpen(clientId, payment.getPaymentDate());
+					arPaymentService.reverseFromBankUnmatch(payment.getId(), new ReversePaymentRequest("Unmatched from bank reconciliation"));
+					return payment.getId();
+				})
+				.orElse(null);
+	}
+
+	private void releaseActiveInvoiceMatchGroup(UUID firmId, UUID bankTransactionId) {
+		matchGroupItemRepository.findActiveBankClaim(bankTransactionId, firmId).ifPresent(item -> {
+			item.setBankClaimActive(false);
+			matchGroupItemRepository.save(item);
+			ReconciliationMatchGroup group = item.getGroup();
+			if (group.getStatus() == ReconciliationMatchGroup.Status.CONFIRMED) {
+				group.setStatus(ReconciliationMatchGroup.Status.REJECTED);
+				group.setNotes("Unmatched by user");
+				matchGroupRepository.save(group);
+			}
+		});
+	}
+
+	private void alreadyConvertedAndThrow(BankTransactionLedgerGeneration generation) {
+		throw alreadyConverted(generation);
+	}
+
+	private void persistConfirmedMatch(ReconciliationMatch match) {
+		try {
+			matchRepository.saveAndFlush(match);
+		} catch (DataIntegrityViolationException ex) {
+			throw translateReconciliationUniqueViolation(ex);
+		}
+	}
+
+	private BusinessException translateReconciliationUniqueViolation(DataIntegrityViolationException ex) {
+		String message = ex.getMostSpecificCause() != null && ex.getMostSpecificCause().getMessage() != null
+				? ex.getMostSpecificCause().getMessage().toLowerCase()
+				: "";
+		if (message.contains("uq_recon_confirmed_bank_txn")
+				|| message.contains("uq_recon_group_item_bank_txn")
+				|| message.contains("uq_recon_group_item_bank_txn_active")) {
+			return new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+		if (message.contains("uq_recon_confirmed_expense")) {
+			return new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT, "Expense is already reconciled");
+		}
+		if (message.contains("uq_recon_confirmed_income")) {
+			return new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT, "Income is already reconciled");
+		}
+		if (message.contains("uq_ar_payments_bank_txn_active")) {
+			return new BusinessException(ErrorCodes.BANK_TRANSACTION_ALREADY_MATCHED, "Bank transaction is already matched");
+		}
+		return new BusinessException(ErrorCodes.RECONCILIATION_CONFLICT, "Reconciliation conflict");
 	}
 
 	private static void validateDirection(BankTransaction bank, boolean expense) {
