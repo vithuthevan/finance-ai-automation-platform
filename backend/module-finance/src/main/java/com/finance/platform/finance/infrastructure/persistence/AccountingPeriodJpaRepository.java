@@ -84,6 +84,19 @@ public interface AccountingPeriodJpaRepository extends JpaRepository<AccountingP
 			@Param("status") AccountingPeriod.PeriodStatus status,
 			@Param("date") LocalDate date);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select p from AccountingPeriod p
+			where p.firmId = :firmId
+			  and p.client.id = :clientId
+			  and p.startDate <= :date
+			  and p.endDate >= :date
+			""")
+	Optional<AccountingPeriod> findContainingForUpdate(
+			@Param("firmId") UUID firmId,
+			@Param("clientId") UUID clientId,
+			@Param("date") LocalDate date);
+
 	@Query("""
 			select count(p) > 0 from AccountingPeriod p
 			where p.firmId = :firmId

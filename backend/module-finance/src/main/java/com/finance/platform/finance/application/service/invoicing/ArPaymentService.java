@@ -17,9 +17,12 @@ import com.finance.platform.finance.application.dto.invoicing.PaymentAllocationR
 import com.finance.platform.finance.application.dto.invoicing.ReverseAllocationRequest;
 import com.finance.platform.finance.application.dto.invoicing.ReversePaymentRequest;
 import com.finance.platform.finance.application.invoicing.MoneyMath;
+import com.finance.platform.finance.application.service.PeriodCloseService;
 import com.finance.platform.finance.domain.model.invoicing.ArPayment;
 import com.finance.platform.finance.domain.model.invoicing.ArPaymentAllocation;
+import com.finance.platform.finance.domain.model.invoicing.ArCustomer;
 import com.finance.platform.finance.domain.model.invoicing.SalesInvoice;
+import com.finance.platform.finance.infrastructure.persistence.ArCustomerJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ArPaymentAllocationJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ArPaymentJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.SalesInvoiceJpaRepository;
@@ -45,6 +48,8 @@ public class ArPaymentService {
 	private final SalesInvoiceJpaRepository invoiceRepository;
 	private final InvoiceSettlementService settlementService;
 	private final AuditLogger auditLogger;
+	private final PeriodCloseService periodCloseService;
+	private final ArCustomerJpaRepository customerRepository;
 
 	@Transactional(readOnly = true)
 	public List<ArPaymentResponse> list() {
@@ -67,6 +72,7 @@ public class ArPaymentService {
 		if (amount.compareTo(BigDecimal.ZERO) <= 0) {
 			throw new ValidationException("amount", "Payment amount must be positive");
 		}
+		assertPeriodOpenForCustomer(firmId, request.customerId(), request.paymentDate(), "ar_payment_record");
 		ArPayment.Source source = ArPayment.Source.MANUAL;
 		if (request.source() != null && !request.source().isBlank()) {
 			try {
@@ -103,6 +109,7 @@ public class ArPaymentService {
 		if (payment.getStatus() == ArPayment.Status.REVERSED) {
 			throw new BusinessException(ErrorCodes.VALIDATION_FAILED, "Cannot allocate a reversed payment");
 		}
+		assertPeriodOpenForCustomer(firmId, payment.getCustomerId(), payment.getPaymentDate(), "ar_payment_allocate");
 		BigDecimal requestTotal = BigDecimal.ZERO;
 		Map<UUID, BigDecimal> byInvoice = new HashMap<>();
 		for (PaymentAllocationItemRequest item : request.allocations()) {
@@ -129,6 +136,7 @@ public class ArPaymentService {
 		if (payment.getStatus() == ArPayment.Status.REVERSED) {
 			throw new BusinessException(ErrorCodes.VALIDATION_FAILED, "Cannot reverse allocation on a reversed payment");
 		}
+		assertPeriodOpenForCustomer(firmId, payment.getCustomerId(), payment.getPaymentDate(), "ar_allocation_reverse");
 		ArPaymentAllocation allocation = allocationRepository.findByPayment_Id(payment.getId()).stream()
 				.filter(row -> row.getId().equals(allocationId))
 				.findFirst()
@@ -201,6 +209,15 @@ public class ArPaymentService {
 
 	@Transactional
 	public ArPaymentResponse reverse(UUID paymentId, ReversePaymentRequest request) {
+		return reverse(paymentId, request, true);
+	}
+
+	@Transactional
+	public ArPaymentResponse reverseFromBankUnmatch(UUID paymentId, ReversePaymentRequest request) {
+		return reverse(paymentId, request, false);
+	}
+
+	private ArPaymentResponse reverse(UUID paymentId, ReversePaymentRequest request, boolean enforceBankUnmatchPolicy) {
 		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
 		UUID userId = SecurityUtils.requireCurrentUser().getId();
 		ArPayment payment = paymentRepository.findForUpdate(paymentId, firmId)
@@ -208,6 +225,10 @@ public class ArPaymentService {
 		if (payment.getStatus() == ArPayment.Status.REVERSED) {
 			return toResponse(payment);
 		}
+		if (enforceBankUnmatchPolicy) {
+			assertBankLinkedReversePolicy(payment);
+		}
+		assertPeriodOpenForCustomer(firmId, payment.getCustomerId(), payment.getPaymentDate(), "ar_payment_reverse");
 		List<ArPaymentAllocation> allocations = allocationRepository.findByPayment_Id(payment.getId());
 		for (ArPaymentAllocation allocation : allocations) {
 			if (!allocation.isActive()) {
@@ -266,6 +287,31 @@ public class ArPaymentService {
 		payment.setUnallocatedAmount(MoneyMath.subtract(payment.getUnallocatedAmount(), amount));
 		settlementService.refreshSettlement(invoice);
 		invoiceRepository.save(invoice);
+	}
+
+	private void assertBankLinkedReversePolicy(ArPayment payment) {
+		if (payment.getSource() == ArPayment.Source.BANK_IMPORT && payment.getBankTransactionId() != null) {
+			throw new BusinessException(
+					ErrorCodes.AR_PAYMENT_REVERSE_REQUIRES_BANK_UNMATCH,
+					"Bank-import payments must be reversed via bank reconciliation unmatch",
+					Map.of("paymentId", payment.getId(), "bankTransactionId", payment.getBankTransactionId()));
+		}
+	}
+
+	private void assertPeriodOpenForCustomer(UUID firmId, UUID customerId, LocalDate paymentDate, String operation) {
+		UUID clientId = resolveClientId(firmId, customerId);
+		if (clientId != null) {
+			periodCloseService.assertPeriodOpen(clientId, operation, paymentDate);
+		}
+	}
+
+	private UUID resolveClientId(UUID firmId, UUID customerId) {
+		if (customerId == null) {
+			return null;
+		}
+		return customerRepository.findByIdAndFirmId(customerId, firmId)
+				.map(ArCustomer::getClientId)
+				.orElse(null);
 	}
 
 	private void refreshPaymentStatus(ArPayment payment) {

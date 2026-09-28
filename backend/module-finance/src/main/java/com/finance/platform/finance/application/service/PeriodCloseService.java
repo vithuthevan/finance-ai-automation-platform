@@ -166,7 +166,9 @@ public class PeriodCloseService {
 		if (reason == null || reason.isBlank()) {
 			throw new BusinessException(ErrorCodes.PERIOD_REOPEN_REASON_REQUIRED, "A reopen reason is required");
 		}
-		AccountingPeriod period = requirePeriod(clientId, periodId);
+		UUID firmId = SecurityUtils.requireCurrentUser().getFirmId();
+		AccountingPeriod period = periodRepository.findByIdAndClient_IdAndFirmIdForUpdate(periodId, clientId, firmId)
+				.orElseThrow(() -> new ResourceNotFoundException("Accounting period", periodId));
 		if (!period.isClosed()) {
 			throw new BusinessException(ErrorCodes.PERIOD_NOT_CLOSED, "Only closed periods can be reopened");
 		}
@@ -244,15 +246,7 @@ public class PeriodCloseService {
 	}
 
 	public void assertPeriodOpen(UUID clientId, LocalDate date) {
-		if (date == null) {
-			return;
-		}
-		UUID firmId = clientAccessService.requireCurrentUserEntity().getFirmId();
-		periodRepository.findClosedContaining(firmId, clientId, AccountingPeriod.PeriodStatus.CLOSED, date)
-				.ifPresent(period -> {
-					throw new BusinessException(ErrorCodes.PERIOD_CLOSED,
-							"This date belongs to a closed bookkeeping period. Reopen the period to change financial data.");
-				});
+		assertPeriodOpen(clientId, null, date);
 	}
 
 	public void assertPeriodOpen(UUID clientId, LocalDate... dates) {
@@ -260,8 +254,39 @@ public class PeriodCloseService {
 			return;
 		}
 		for (LocalDate date : dates) {
-			assertPeriodOpen(clientId, date);
+			assertPeriodOpen(clientId, null, date);
 		}
+	}
+
+	/**
+	 * Serializes financial writes against {@link #close} via pessimistic lock on the accounting period row
+	 * when a period record exists for the date's calendar month.
+	 */
+	public void assertPeriodOpen(UUID clientId, String operation, LocalDate date) {
+		if (date == null) {
+			return;
+		}
+		UUID firmId = clientAccessService.requireCurrentUserEntity().getFirmId();
+		periodRepository.findContainingForUpdate(firmId, clientId, date).ifPresent(period -> {
+			if (period.isClosed()) {
+				throw periodClosed(period, clientId, operation);
+			}
+		});
+	}
+
+	private static BusinessException periodClosed(AccountingPeriod period, UUID clientId, String operation) {
+		Map<String, Object> extras = new LinkedHashMap<>();
+		extras.put("clientId", clientId);
+		extras.put("periodId", period.getId());
+		extras.put("periodYear", period.getPeriodYear());
+		extras.put("periodMonth", period.getPeriodMonth());
+		if (operation != null && !operation.isBlank()) {
+			extras.put("operation", operation.trim());
+		}
+		return new BusinessException(
+				ErrorCodes.PERIOD_CLOSED,
+				"This date belongs to a closed bookkeeping period. Reopen the period to change financial data.",
+				extras);
 	}
 
 	public boolean isPeriodClosed(UUID clientId, LocalDate date) {

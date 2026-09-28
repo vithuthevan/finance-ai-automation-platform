@@ -20,6 +20,9 @@ public interface ArPaymentJpaRepository extends JpaRepository<ArPayment, UUID> {
 	Optional<ArPayment> findByFirmIdAndBankTransactionIdAndStatusNot(
 			UUID firmId, UUID bankTransactionId, ArPayment.Status excludedStatus);
 
+	boolean existsByFirmIdAndBankTransactionIdAndStatusNot(
+			UUID firmId, UUID bankTransactionId, ArPayment.Status excludedStatus);
+
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select p from ArPayment p where p.id = :id and p.firmId = :firmId")
 	Optional<ArPayment> findForUpdate(@Param("id") UUID id, @Param("firmId") UUID firmId);

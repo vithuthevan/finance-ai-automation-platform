@@ -27,6 +27,7 @@ import com.finance.platform.finance.domain.model.TransactionStatusRules;
 import com.finance.platform.finance.infrastructure.persistence.CategoryJpaRepository;
 import com.finance.platform.finance.infrastructure.persistence.ExpenseJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -49,6 +50,7 @@ public class ExpenseService {
 	private final CategoryJpaRepository categoryRepository;
 	private final ClientAccessService clientAccessService;
 	private final PeriodCloseService periodCloseService;
+	private final ObjectProvider<BankReconciliationService> bankReconciliationService;
 	private final AuditLogger auditLogger;
 
 	@Transactional(readOnly = true)
@@ -198,6 +200,7 @@ public class ExpenseService {
 		Map<String, Object> before = expenseSnapshot(expense);
 		expense.voidExpense(clientAccessService.requireCurrentUserEntity(), voidReason);
 		Expense saved = expenseRepository.save(expense);
+		bankReconciliationService.getObject().releaseConfirmedMatchesForVoidedExpense(clientId, saved.getId());
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(saved.getFirmId())
 				.action(AuditAction.EXPENSE_VOIDED)
