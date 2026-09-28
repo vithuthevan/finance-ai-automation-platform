@@ -19,7 +19,7 @@ test.describe('Authentication', () => {
   test('rejects invalid credentials', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill('not-a-user@example.test');
-    await page.getByLabel('Password').fill('wrong-password');
+    await page.getByRole('textbox', { name: 'Password' }).fill('wrong-password');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByText('Invalid credentials')).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
