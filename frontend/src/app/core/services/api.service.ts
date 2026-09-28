@@ -10,7 +10,7 @@ interface PageResponse<T> {
 }
 
 /** Paths where duplicate POSTs can corrupt financial state if retried without a key. */
-const IDEMPOTENT_POST = /\/api\/v1\/clients\/[^/]+\/(expenses(\/[^/]+\/(approve|void))?|income(\/[^/]+\/(approve|void))?|bank\/(imports|transactions\/[^/]+\/confirm)|documents\/[^/]+\/review\/accept|periods\/[^/]+\/close)(?:\?|$)/;
+const IDEMPOTENT_POST = /\/api\/v1\/clients\/[^/]+\/(expenses(\/[^/]+\/(approve|void))?|income(\/[^/]+\/(approve|void))?|bank\/(imports|transactions\/[^/]+\/(confirm|create-expense|create-income))|documents\/[^/]+\/review\/accept|periods\/[^/]+\/close)(?:\?|$)/;
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
