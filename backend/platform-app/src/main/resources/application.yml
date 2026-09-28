@@ -87,6 +87,10 @@ app:
   outbox:
     poll-interval-ms: ${APP_OUTBOX_POLL_INTERVAL_MS:3000}
     worker-id: ${APP_OUTBOX_WORKER_ID:}
+  idempotency:
+    retention-hours: ${APP_IDEMPOTENCY_RETENTION_HOURS:24}
+    processing-lease-seconds: ${APP_IDEMPOTENCY_PROCESSING_LEASE_SECONDS:120}
+    cleanup-interval-ms: ${APP_IDEMPOTENCY_CLEANUP_INTERVAL_MS:3600000}
   observability:
     metrics-refresh-ms: ${APP_OBSERVABILITY_METRICS_REFRESH_MS:60000}
 

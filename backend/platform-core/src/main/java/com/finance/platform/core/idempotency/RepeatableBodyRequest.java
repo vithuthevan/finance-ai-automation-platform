@@ -7,7 +7,9 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -25,7 +27,26 @@ final class RepeatableBodyRequest extends HttpServletRequestWrapper {
 	}
 
 	static RepeatableBodyRequest from(HttpServletRequest request) throws IOException {
-		return new RepeatableBodyRequest(request, request.getInputStream().readAllBytes());
+		long declared = request.getContentLengthLong();
+		if (declared > IdempotencyFingerprint.MAX_BODY_BYTES) {
+			throw new IdempotencyPayloadTooLargeException();
+		}
+		return new RepeatableBodyRequest(request, readAtMost(request.getInputStream(), IdempotencyFingerprint.MAX_BODY_BYTES));
+	}
+
+	private static byte[] readAtMost(InputStream input, int max) throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		byte[] buffer = new byte[8192];
+		int total = 0;
+		int read;
+		while ((read = input.read(buffer)) != -1) {
+			total += read;
+			if (total > max) {
+				throw new IdempotencyPayloadTooLargeException();
+			}
+			out.write(buffer, 0, read);
+		}
+		return out.toByteArray();
 	}
 
 	byte[] body() {
