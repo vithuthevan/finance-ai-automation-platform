@@ -4,6 +4,7 @@ import com.finance.platform.auth.application.dto.LoginRequest;
 import com.finance.platform.auth.application.dto.LoginResponse;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
+import com.finance.platform.auth.infrastructure.security.AuthIdentifierNormalizer;
 import com.finance.platform.auth.infrastructure.security.AuthRateLimiter;
 import com.finance.platform.auth.infrastructure.security.LoginLockoutService;
 import com.finance.platform.core.audit.AuditAction;
@@ -45,35 +46,39 @@ public class AuthenticationService {
 
 	@Transactional
 	public LoginResponse login(LoginRequest request, String clientIp) {
+		String email = AuthIdentifierNormalizer.normalizeEmail(request.email());
 		authRateLimiter.checkAllowed("login:ip:" + clientIp);
-		authRateLimiter.checkAllowed("login:" + request.email());
-		Optional<User> existingUser = userRepository.findByEmailAndDeletedAtIsNull(request.email());
+		authRateLimiter.checkAllowed("login:" + email);
+		Optional<User> existingUser = userRepository.findByEmailAndDeletedAtIsNull(email);
 
 		try {
-			loginLockoutService.assertNotLocked(request.email());
+			loginLockoutService.assertNotLocked(email);
 			authenticationManager.authenticate(
-					new UsernamePasswordAuthenticationToken(request.email(), request.password())
+					new UsernamePasswordAuthenticationToken(email, request.password())
 			);
-		} catch (BadCredentialsException | DisabledException | LockedException ex) {
-			loginLockoutService.recordFailure(request.email());
-			recordLoginFailure(request.email(), existingUser.orElse(null), ex.getClass().getSimpleName());
+		} catch (LockedException ex) {
+			recordLoginFailure(email, existingUser.orElse(null), "AccountLocked");
+			throw new BusinessException("Too many failed sign-in attempts. Try again later.");
+		} catch (BadCredentialsException | DisabledException ex) {
+			loginLockoutService.recordFailure(email);
+			recordLoginFailure(email, existingUser.orElse(null), ex.getClass().getSimpleName());
 			throw new BusinessException("Invalid credentials");
 		} catch (AuthenticationException ex) {
-			loginLockoutService.recordFailure(request.email());
-			recordLoginFailure(request.email(), existingUser.orElse(null), ex.getClass().getSimpleName());
+			loginLockoutService.recordFailure(email);
+			recordLoginFailure(email, existingUser.orElse(null), ex.getClass().getSimpleName());
 			throw new BusinessException("Invalid credentials");
 		}
 
-		User user = existingUser.orElseGet(() -> userRepository.findByEmailAndDeletedAtIsNull(request.email())
+		User user = existingUser.orElseGet(() -> userRepository.findByEmailAndDeletedAtIsNull(email)
 				.orElseThrow(() -> new BusinessException("Invalid credentials")));
 
 		if (!emailVerificationService.isLoginAllowed(user)) {
-			loginLockoutService.recordFailure(request.email());
-			recordLoginFailure(request.email(), user, "EmailNotVerified");
+			loginLockoutService.recordFailure(email);
+			recordLoginFailure(email, user, "EmailNotVerified");
 			throw new BusinessException("Invalid credentials");
 		}
 
-		loginLockoutService.clearFailures(request.email());
+		loginLockoutService.clearFailures(email);
 		user.setLastLoginAt(Instant.now());
 		userRepository.save(user);
 		recordLoginSuccess(user);

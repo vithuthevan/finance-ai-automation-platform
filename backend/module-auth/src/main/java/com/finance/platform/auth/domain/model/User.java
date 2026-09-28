@@ -51,6 +51,10 @@ public class User extends TenantAwareEntity {
 	private Instant emailVerifiedAt;
 	private Instant deletedAt;
 
+	@Column(nullable = false)
+	@Builder.Default
+	private long securityVersion = 0L;
+
 	@OneToMany(mappedBy = "user")
 	@Builder.Default
 	private Set<UserClientAccess> clientAccesses = new HashSet<>();

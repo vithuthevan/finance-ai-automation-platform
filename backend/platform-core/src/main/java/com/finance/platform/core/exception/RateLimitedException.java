@@ -9,7 +9,11 @@ public class RateLimitedException extends BusinessException {
 	}
 
 	public RateLimitedException(String message, long retryAfterSeconds) {
-		super(ErrorCodes.RATE_LIMITED, message);
+		this(ErrorCodes.RATE_LIMITED, message, retryAfterSeconds);
+	}
+
+	public RateLimitedException(String errorCode, String message, long retryAfterSeconds) {
+		super(errorCode, message);
 		this.retryAfterSeconds = retryAfterSeconds;
 	}
 

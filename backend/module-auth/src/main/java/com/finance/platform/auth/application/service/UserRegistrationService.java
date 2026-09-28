@@ -8,6 +8,7 @@ import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
 import com.finance.platform.core.audit.AuditLogger;
 import com.finance.platform.core.audit.AuditResourceType;
+import com.finance.platform.auth.infrastructure.security.AuthIdentifierNormalizer;
 import com.finance.platform.auth.infrastructure.security.PasswordPolicy;
 import com.finance.platform.core.exception.BusinessException;
 import com.finance.platform.core.exception.DuplicateResourceException;
@@ -32,6 +33,7 @@ public class UserRegistrationService {
 
 	@Transactional
 	public User registerAdmin(UUID firmId, String email, String rawPassword, String fullName) {
+		email = AuthIdentifierNormalizer.normalizeEmail(email);
 		if (userRepository.findByEmailAndDeletedAtIsNull(email).isPresent()) {
 			throw new DuplicateResourceException("User", "email", email);
 		}

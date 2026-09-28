@@ -5,6 +5,7 @@ import com.finance.platform.auth.application.dto.LoginResponse;
 import com.finance.platform.auth.application.service.AuthenticationService;
 import com.finance.platform.auth.application.service.EmailVerificationService;
 import com.finance.platform.auth.application.service.SessionService;
+import com.finance.platform.auth.infrastructure.security.AuthIdentifierNormalizer;
 import com.finance.platform.auth.infrastructure.security.AuthRateLimiter;
 import com.finance.platform.auth.infrastructure.security.AuthRefreshCookieSupport;
 import com.finance.platform.auth.infrastructure.security.HttpRequestSupport;
@@ -73,7 +74,7 @@ public class LoginController {
 	public void forgotPassword(@Valid @RequestBody EmailRequest request, HttpServletRequest httpRequest) {
 		authRateLimiter.checkAllowed("forgot:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
 		if (request.email() != null && !request.email().isBlank()) {
-			authRateLimiter.checkAllowed("forgot:" + request.email());
+			authRateLimiter.checkAllowed("forgot:" + AuthIdentifierNormalizer.normalizeEmail(request.email()));
 		}
 		sessionService.requestPasswordReset(request.email());
 	}
@@ -105,7 +106,7 @@ public class LoginController {
 	) {
 		authRateLimiter.checkAllowed("resend:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
 		if (request.email() != null && !request.email().isBlank()) {
-			authRateLimiter.checkAllowed("resend:" + request.email());
+			authRateLimiter.checkAllowed("resend:" + AuthIdentifierNormalizer.normalizeEmail(request.email()));
 		}
 		emailVerificationService.resendVerification(request.email());
 	}

@@ -24,6 +24,35 @@ public class SecurityEventLogger {
 		StructuredLog.warn(log, "LOGIN_FAILURE", fields);
 	}
 
+	public void authRateLimited(String scope, String limitKey) {
+		Map<String, Object> fields = StructuredLog.baseFields("FAILURE");
+		fields.put("scope", scope);
+		fields.put("limitKey", sanitizeLimitKey(limitKey));
+		StructuredLog.warn(log, "AUTH_RATE_LIMITED", fields);
+	}
+
+	public void accountTemporarilyLocked(String normalizedEmail) {
+		Map<String, Object> fields = StructuredLog.baseFields("FAILURE");
+		fields.put("email", normalizedEmail);
+		StructuredLog.warn(log, "ACCOUNT_TEMPORARILY_LOCKED", fields);
+	}
+
+	private static String sanitizeLimitKey(String limitKey) {
+		if (limitKey == null) {
+			return "unknown";
+		}
+		int colon = limitKey.indexOf(':');
+		if (colon < 0) {
+			return limitKey;
+		}
+		String prefix = limitKey.substring(0, colon + 1);
+		String suffix = limitKey.substring(colon + 1);
+		if (suffix.contains("@")) {
+			return prefix + "***";
+		}
+		return limitKey;
+	}
+
 	public void logout(UUID userId, UUID firmId, String email) {
 		Map<String, Object> fields = baseAuthFields(userId, firmId);
 		fields.put("email", email);
@@ -45,7 +74,26 @@ public class SecurityEventLogger {
 	public void tokenReuseDetected(UUID userId, UUID firmId, String email) {
 		Map<String, Object> fields = baseAuthFields(userId, firmId);
 		fields.put("email", email);
+		StructuredLog.warn(log, "REFRESH_TOKEN_REUSED", fields);
 		StructuredLog.warn(log, "TOKEN_REUSE_DETECTED", fields);
+	}
+
+	public void allSessionsRevoked(UUID userId, UUID firmId, String email) {
+		Map<String, Object> fields = baseAuthFields(userId, firmId);
+		fields.put("email", email);
+		StructuredLog.info(log, "ALL_SESSIONS_REVOKED", fields);
+	}
+
+	public void passwordChanged(UUID userId, UUID firmId, String email) {
+		Map<String, Object> fields = baseAuthFields(userId, firmId);
+		fields.put("email", email);
+		StructuredLog.info(log, "PASSWORD_CHANGED", fields);
+	}
+
+	public void userDisabled(UUID userId, UUID firmId, String email) {
+		Map<String, Object> fields = baseAuthFields(userId, firmId);
+		fields.put("email", email);
+		StructuredLog.warn(log, "USER_DISABLED", fields);
 	}
 
 	public void emailVerified(UUID userId, UUID firmId, String email) {

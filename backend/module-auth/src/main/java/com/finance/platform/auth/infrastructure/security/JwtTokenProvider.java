@@ -37,6 +37,7 @@ public class JwtTokenProvider {
 				.claim(JwtClaimNames.FIRM_ID, user.getFirmId().toString())
 				.claim(JwtClaimNames.ROLE, user.getRole().getCode().name())
 				.claim(JwtClaimNames.EMAIL, user.getEmail())
+				.claim(JwtClaimNames.SECURITY_VERSION, user.getSecurityVersion())
 				.issuedAt(Date.from(now))
 				.expiration(Date.from(expiry))
 				.signWith(secretKey)
@@ -51,11 +52,18 @@ public class JwtTokenProvider {
 				.parseSignedClaims(token)
 				.getPayload();
 
+		long securityVersion = 0L;
+		Object secVerClaim = claims.get(JwtClaimNames.SECURITY_VERSION);
+		if (secVerClaim instanceof Number number) {
+			securityVersion = number.longValue();
+		}
+
 		return new JwtClaims(
 				UUID.fromString(claims.getSubject()),
 				UUID.fromString(claims.get(JwtClaimNames.FIRM_ID, String.class)),
 				Role.RoleCode.valueOf(claims.get(JwtClaimNames.ROLE, String.class)),
 				claims.get(JwtClaimNames.EMAIL, String.class),
+				securityVersion,
 				claims.getId(),
 				claims.getExpiration().toInstant()
 		);
@@ -82,6 +90,7 @@ public class JwtTokenProvider {
 			UUID firmId,
 			Role.RoleCode role,
 			String email,
+			long securityVersion,
 			String tokenId,
 			Instant expiresAt
 	) {

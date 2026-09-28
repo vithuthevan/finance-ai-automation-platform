@@ -29,6 +29,7 @@ import com.finance.platform.core.exception.ResourceNotFoundException;
 import com.finance.platform.core.dto.PageRequests;
 import com.finance.platform.core.dto.PageResponse;
 import com.finance.platform.core.exception.ValidationException;
+import com.finance.platform.core.observability.SecurityEventLogger;
 import com.finance.platform.core.subscription.SubscriptionQuotaGuard;
 import com.finance.platform.core.security.FirmClientLookup;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,7 @@ public class UserService {
 	private final AuditLogger auditLogger;
 	private final SessionService sessionService;
 	private final SubscriptionQuotaGuard subscriptionQuotaGuard;
+	private final SecurityEventLogger securityEventLogger;
 
 	@Transactional(readOnly = true)
 	public UserProfileResponse getProfile() {
@@ -215,6 +217,7 @@ public class UserService {
 		if (!active) {
 			user.setDeletedAt(null);
 			sessionService.revokeAllForUser(user.getId());
+			securityEventLogger.userDisabled(user.getId(), user.getFirmId(), user.getEmail());
 		}
 		User saved = userRepository.save(user);
 		List<UserClientAccess> access = clientAccessRepository.findByUser_Id(saved.getId());
@@ -286,6 +289,7 @@ public class UserService {
 		user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
 		userRepository.save(user);
 		sessionService.revokeAllForUser(user.getId());
+		securityEventLogger.passwordChanged(user.getId(), user.getFirmId(), user.getEmail());
 		auditLogger.record(AuditEvent.fromTenant()
 				.firmId(user.getFirmId())
 				.action(AuditAction.USER_PASSWORD_CHANGED)

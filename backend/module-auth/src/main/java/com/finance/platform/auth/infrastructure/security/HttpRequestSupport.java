@@ -2,6 +2,13 @@ package com.finance.platform.auth.infrastructure.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+/**
+ * Resolves the client IP for auth abuse controls.
+ * <p>
+ * Uses {@link HttpServletRequest#getRemoteAddr()} only. With {@code server.forward-headers-strategy=framework}
+ * (see {@code application.yml}), Spring applies forwarded headers from trusted proxies when the connection
+ * is via a load balancer; client-supplied {@code X-Forwarded-For} on direct access does not affect the result.
+ */
 public final class HttpRequestSupport {
 
 	private HttpRequestSupport() {
@@ -11,12 +18,7 @@ public final class HttpRequestSupport {
 		if (request == null) {
 			return "unknown";
 		}
-		String forwarded = request.getHeader("X-Forwarded-For");
-		if (forwarded != null && !forwarded.isBlank()) {
-			int comma = forwarded.indexOf(',');
-			return comma > 0 ? forwarded.substring(0, comma).trim() : forwarded.trim();
-		}
 		String remote = request.getRemoteAddr();
-		return remote == null || remote.isBlank() ? "unknown" : remote;
+		return remote == null || remote.isBlank() ? "unknown" : remote.trim();
 	}
 }

@@ -2,6 +2,7 @@ package com.finance.platform.controller.auth;
 
 import com.finance.platform.auth.application.dto.RegisterRequest;
 import com.finance.platform.auth.application.dto.RegisterResponse;
+import com.finance.platform.auth.infrastructure.security.AuthIdentifierNormalizer;
 import com.finance.platform.auth.infrastructure.security.AuthRateLimiter;
 import com.finance.platform.auth.infrastructure.security.HttpRequestSupport;
 import com.finance.platform.application.service.RegistrationService;
@@ -31,7 +32,7 @@ public class RegistrationController {
 	) {
 		authRateLimiter.checkAllowed("register:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
 		if (request.email() != null && !request.email().isBlank()) {
-			authRateLimiter.checkAllowed("register:" + request.email());
+			authRateLimiter.checkAllowed("register:" + AuthIdentifierNormalizer.normalizeEmail(request.email()));
 		}
 		return registrationService.register(request);
 	}

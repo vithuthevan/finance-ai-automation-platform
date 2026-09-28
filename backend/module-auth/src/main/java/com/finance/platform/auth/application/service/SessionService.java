@@ -7,6 +7,7 @@ import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.PasswordResetTokenJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.RefreshTokenJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
+import com.finance.platform.auth.infrastructure.security.AuthIdentifierNormalizer;
 import com.finance.platform.auth.infrastructure.security.PasswordPolicy;
 import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
@@ -20,8 +21,11 @@ import com.finance.platform.core.notification.EmailService;
 import com.finance.platform.core.notification.EmailTemplateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -51,6 +55,10 @@ public class SessionService {
 	private final AuditLogger auditLogger;
 	private final SecurityEventLogger securityEventLogger;
 
+	@Lazy
+	@Autowired
+	private SessionService self;
+
 	@Transactional
 	public String issueRefreshToken(User user) {
 		String raw = randomToken();
@@ -65,7 +73,7 @@ public class SessionService {
 
 	@Transactional
 	public LoginResponse refresh(String refreshToken) {
-		Optional<RefreshToken> storedOpt = refreshTokenRepository.findByTokenHash(sha256(refreshToken));
+		Optional<RefreshToken> storedOpt = refreshTokenRepository.findByTokenHashForUpdate(sha256(refreshToken));
 		if (storedOpt.isEmpty()) {
 			throw new BusinessException("Refresh token is invalid or expired");
 		}
@@ -76,6 +84,7 @@ public class SessionService {
 		}
 		stored.setRevokedAt(Instant.now());
 		refreshTokenRepository.save(stored);
+		refreshTokenRepository.flush();
 		User user = stored.getUser();
 		if (user == null || !user.isActive() || user.getDeletedAt() != null) {
 			throw new BusinessException(com.finance.platform.core.exception.ErrorCodes.USER_INACTIVE, "User is inactive");
@@ -96,11 +105,34 @@ public class SessionService {
 
 	@Transactional
 	public void revokeAllForUser(UUID userId) {
+		revokeAllForUserInternal(userId);
+	}
+
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public void revokeAllForUserInNewTransaction(UUID userId) {
+		revokeAllForUserInternal(userId);
+	}
+
+	private void revokeAllForUserInternal(UUID userId) {
 		Instant now = Instant.now();
-		for (RefreshToken token : refreshTokenRepository.findByUser_IdAndRevokedAtIsNull(userId)) {
-			token.setRevokedAt(now);
-			refreshTokenRepository.save(token);
-		}
+		refreshTokenRepository.revokeAllActiveForUser(userId, now);
+		refreshTokenRepository.flush();
+		userRepository.findById(userId).ifPresent(user -> {
+			user.setSecurityVersion(user.getSecurityVersion() + 1L);
+			userRepository.save(user);
+			securityEventLogger.allSessionsRevoked(user.getId(), user.getFirmId(), user.getEmail());
+			Map<String, Object> metadata = new LinkedHashMap<>();
+			metadata.put("email", user.getEmail());
+			auditLogger.recordIndependent(AuditEvent.builder()
+					.firmId(user.getFirmId())
+					.actorUserId(user.getId())
+					.actorRole(user.getRole().getCode().name())
+					.action(AuditAction.SESSION_REVOKED)
+					.resourceType(AuditResourceType.AUTH)
+					.resourceId(user.getId())
+					.metadata(metadata)
+					.build());
+		});
 	}
 
 	@Transactional
@@ -117,7 +149,8 @@ public class SessionService {
 
 	@Transactional
 	public void requestPasswordReset(String email) {
-		userRepository.findByEmailAndDeletedAtIsNull(email).ifPresent(user -> {
+		String normalized = AuthIdentifierNormalizer.normalizeEmail(email);
+		userRepository.findByEmailAndDeletedAtIsNull(normalized).ifPresent(user -> {
 			invalidateUnusedPasswordResetTokens(user.getId());
 			String raw = randomToken();
 			passwordResetTokenRepository.save(PasswordResetToken.builder()
@@ -180,7 +213,7 @@ public class SessionService {
 			return;
 		}
 		securityEventLogger.tokenReuseDetected(user.getId(), user.getFirmId(), user.getEmail());
-		revokeAllForUser(user.getId());
+		self.revokeAllForUserInNewTransaction(user.getId());
 		Map<String, Object> metadata = new LinkedHashMap<>();
 		metadata.put("email", user.getEmail());
 		auditLogger.recordIndependent(AuditEvent.builder()

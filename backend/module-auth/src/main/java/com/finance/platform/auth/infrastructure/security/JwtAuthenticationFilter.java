@@ -60,6 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			userRepository.findDetailedById(claims.userId())
 					.filter(this::isActiveUser)
 					.filter(user -> user.getFirmId().equals(claims.firmId()))
+					.filter(user -> user.getSecurityVersion() == claims.securityVersion())
 					.ifPresent(user -> setAuthenticatedUser(request, user));
 		} catch (RuntimeException ex) {
 			securityEventLogger.jwtRejected(

@@ -4,6 +4,7 @@ import com.finance.platform.auth.domain.model.EmailVerificationToken;
 import com.finance.platform.auth.domain.model.User;
 import com.finance.platform.auth.infrastructure.persistence.EmailVerificationTokenJpaRepository;
 import com.finance.platform.auth.infrastructure.persistence.UserJpaRepository;
+import com.finance.platform.auth.infrastructure.security.AuthIdentifierNormalizer;
 import com.finance.platform.auth.infrastructure.security.AuthProperties;
 import com.finance.platform.core.audit.AuditAction;
 import com.finance.platform.core.audit.AuditEvent;
@@ -69,7 +70,7 @@ public class EmailVerificationService {
 		if (email == null || email.isBlank()) {
 			return;
 		}
-		userRepository.findByEmailAndDeletedAtIsNull(email.trim()).ifPresent(user -> {
+		userRepository.findByEmailAndDeletedAtIsNull(AuthIdentifierNormalizer.normalizeEmail(email)).ifPresent(user -> {
 			if (user.getEmailVerifiedAt() != null || !authProperties.isEmailVerificationRequired()) {
 				return;
 			}

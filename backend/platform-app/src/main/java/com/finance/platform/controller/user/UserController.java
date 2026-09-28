@@ -7,7 +7,11 @@ import com.finance.platform.auth.application.dto.ReplaceClientAccessRequest;
 import com.finance.platform.auth.application.dto.UpdateUserRequest;
 import com.finance.platform.auth.application.dto.UserResponse;
 import com.finance.platform.auth.application.service.UserService;
+import com.finance.platform.auth.infrastructure.security.AuthRateLimiter;
+import com.finance.platform.auth.infrastructure.security.HttpRequestSupport;
+import com.finance.platform.auth.infrastructure.security.SecurityUtils;
 import com.finance.platform.core.dto.PageResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,6 +35,7 @@ import java.util.UUID;
 public class UserController {
 
 	private final UserService userService;
+	private final AuthRateLimiter authRateLimiter;
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN')")
@@ -84,7 +89,12 @@ public class UserController {
 	@PostMapping("/me/password")
 	@PreAuthorize("isAuthenticated()")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+	public void changePassword(
+			@Valid @RequestBody ChangePasswordRequest request,
+			HttpServletRequest httpRequest
+	) {
+		authRateLimiter.checkAllowed("changepassword:ip:" + HttpRequestSupport.resolveClientIp(httpRequest));
+		authRateLimiter.checkAllowed("changepassword:" + SecurityUtils.requireCurrentUser().getId());
 		userService.changePassword(request);
 	}
 }

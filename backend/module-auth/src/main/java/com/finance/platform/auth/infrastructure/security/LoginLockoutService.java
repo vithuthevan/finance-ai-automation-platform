@@ -1,8 +1,11 @@
 package com.finance.platform.auth.infrastructure.security;
 
+import com.finance.platform.core.observability.SecurityEventLogger;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -14,22 +17,23 @@ import java.util.concurrent.ConcurrentHashMap;
  * Lockouts expire automatically; accounts are never permanently locked.
  */
 @Component
+@RequiredArgsConstructor
 public class LoginLockoutService {
 
-	private static final int MAX_FAILURES = 5;
-	private static final long FAILURE_WINDOW_SECONDS = 900;
-	private static final long LOCKOUT_SECONDS = 900;
+	private final AuthProperties authProperties;
+	private final SecurityEventLogger securityEventLogger;
+	private final Clock clock;
 
 	private final Map<String, FailureState> failures = new ConcurrentHashMap<>();
 
 	public void assertNotLocked(String email) {
-		String key = normalize(email);
+		String key = AuthIdentifierNormalizer.normalizeEmail(email);
 		FailureState state = failures.get(key);
 		if (state == null) {
 			return;
 		}
 		synchronized (state) {
-			Instant now = Instant.now();
+			Instant now = clock.instant();
 			state.pruneFailures(now);
 			if (state.lockedUntil != null && state.lockedUntil.isAfter(now)) {
 				throw new LockedException("Account is temporarily locked");
@@ -38,36 +42,46 @@ public class LoginLockoutService {
 				state.lockedUntil = null;
 				state.failureTimes.clear();
 			}
+			evictIfEmpty(key, state);
 		}
 	}
 
 	public void recordFailure(String email) {
-		String key = normalize(email);
-		Instant now = Instant.now();
+		String key = AuthIdentifierNormalizer.normalizeEmail(email);
+		Instant now = clock.instant();
+		AuthProperties.LoginLockout policy = authProperties.getLoginLockout();
 		FailureState state = failures.computeIfAbsent(key, ignored -> new FailureState());
 		synchronized (state) {
 			state.pruneFailures(now);
 			state.failureTimes.addLast(now);
-			if (state.failureTimes.size() >= MAX_FAILURES) {
-				state.lockedUntil = now.plusSeconds(LOCKOUT_SECONDS);
+			if (state.failureTimes.size() >= policy.getMaxFailures() && state.lockedUntil == null) {
+				state.lockedUntil = now.plusSeconds(policy.getLockoutSeconds());
+				securityEventLogger.accountTemporarilyLocked(key);
 			}
 		}
 	}
 
 	public void clearFailures(String email) {
-		failures.remove(normalize(email));
+		failures.remove(AuthIdentifierNormalizer.normalizeEmail(email));
 	}
 
-	private static String normalize(String email) {
-		return email == null ? "unknown" : email.trim().toLowerCase();
+	public void resetAll() {
+		failures.clear();
 	}
 
-	private static final class FailureState {
+	private void evictIfEmpty(String key, FailureState state) {
+		if (state.lockedUntil == null && state.failureTimes.isEmpty()) {
+			failures.remove(key, state);
+		}
+	}
+
+	private final class FailureState {
 		private final Deque<Instant> failureTimes = new ArrayDeque<>();
 		private Instant lockedUntil;
 
 		private void pruneFailures(Instant now) {
-			Instant windowStart = now.minusSeconds(FAILURE_WINDOW_SECONDS);
+			long windowSeconds = authProperties.getLoginLockout().getFailureWindowSeconds();
+			Instant windowStart = now.minusSeconds(windowSeconds);
 			while (!failureTimes.isEmpty() && failureTimes.peekFirst().isBefore(windowStart)) {
 				failureTimes.pollFirst();
 			}
