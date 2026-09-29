@@ -25,11 +25,13 @@ export async function clickSidebarNav(page: Page, href: string): Promise<void> {
 
   await link.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
   await expect(link).toBeVisible();
-  await link.click();
 
   const pathRe = hrefPattern(href);
   try {
-    await expect(page).toHaveURL(pathRe, { timeout: 8000 });
+    await Promise.all([
+      page.waitForURL(pathRe, { timeout: 15_000 }),
+      link.click(),
+    ]);
   } catch {
     await page.goto(href, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(pathRe);

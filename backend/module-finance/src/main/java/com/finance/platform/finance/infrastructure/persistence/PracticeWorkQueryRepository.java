@@ -71,7 +71,7 @@ public class PracticeWorkQueryRepository {
 	@SuppressWarnings("unchecked")
 	public List<WorkRow> listDocumentReview(UUID firmId, Collection<UUID> clientIds, boolean allClients, int limit) {
 		Query query = entityManager.createNativeQuery("""
-				select r.id, r.client_id, c.name, coalesce(r.description, r.original_filename, 'Document'),
+				select r.id, r.client_id, c.name, coalesce(r.description, r.file_name, 'Document'),
 				       r.uploaded_at
 				from receipts r
 				join clients c on c.id = r.client_id
@@ -89,7 +89,7 @@ public class PracticeWorkQueryRepository {
 	@SuppressWarnings("unchecked")
 	public List<WorkRow> listProcessingFailures(UUID firmId, Collection<UUID> clientIds, boolean allClients, int limit) {
 		Query query = entityManager.createNativeQuery("""
-				select r.id, r.client_id, c.name, coalesce(r.description, r.original_filename, 'Failed document'),
+				select r.id, r.client_id, c.name, coalesce(r.description, r.file_name, 'Failed document'),
 				       r.uploaded_at
 				from receipts r
 				join clients c on c.id = r.client_id
