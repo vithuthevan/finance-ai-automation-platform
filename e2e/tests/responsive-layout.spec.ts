@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from '../support/auth';
 import { ACCOUNTANT_EMAIL } from '../support/constants';
+import { clickSidebarNav } from '../support/navigation';
 
 const WIDTHS = [320, 375, 430, 768, 1024, 1280, 1440, 1920] as const;
 
@@ -25,7 +26,8 @@ test.describe('Responsive layout (accountant)', () => {
       test.setTimeout(120_000);
       await page.setViewportSize({ width, height: 900 });
       for (const route of ROUTES) {
-        await page.goto(route, { waitUntil: 'domcontentloaded' });
+        await clickSidebarNav(page, route);
+        await expect(page).toHaveURL(new RegExp(`${route.replace(/\//g, '\\/')}(?:/|\\?|$)`));
         await page.waitForTimeout(400);
         const overflow = await page.evaluate(() => {
           const doc = document.documentElement;

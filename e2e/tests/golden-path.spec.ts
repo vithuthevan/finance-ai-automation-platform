@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from '../support/auth';
-import { ACCOUNTANT_EMAIL } from '../support/constants';
+import { ACCOUNTANT_EMAIL, DEMO_CLIENT } from '../support/constants';
 import { selectActiveClientIfShown, selectReportClientIfShown } from '../support/client-context';
 import { clickSidebarNav } from '../support/navigation';
 
@@ -20,14 +20,17 @@ test.describe('Golden path (browser)', () => {
     await clickSidebarNav(page, '/app/expenses');
     await expect(page).toHaveURL(/\/app\/expenses/);
 
-    await selectActiveClientIfShown(page, /Cedar Café/i);
+    await selectActiveClientIfShown(page, DEMO_CLIENT);
 
     const createDraft = page.locator('section.card-block').filter({ hasText: 'Create draft' });
+    await createDraft.getByLabel('Date').fill('9/20/2026');
+    await createDraft.getByLabel('Date').press('Tab');
     await createDraft.getByLabel('Amount').fill('1250');
     await createDraft.getByLabel('Vendor').fill(vendor);
     await createDraft.getByLabel('Category').click();
     await page.getByRole('option').first().click();
-    await page.getByRole('button', { name: 'Create draft' }).click();
+    await expect(createDraft.getByRole('button', { name: 'Create draft' })).toBeEnabled({ timeout: 5000 });
+    await createDraft.getByRole('button', { name: 'Create draft' }).click();
 
     await page.getByLabel('Status').click();
     await page.getByRole('option', { name: 'Draft' }).click();
@@ -40,7 +43,7 @@ test.describe('Golden path (browser)', () => {
     await clickSidebarNav(page, '/app/reports');
     await expect(page).toHaveURL(/\/app\/reports/);
 
-    await selectReportClientIfShown(page, /Cedar Café/i);
+    await selectReportClientIfShown(page, DEMO_CLIENT);
     await page.getByRole('button', { name: 'Run' }).click();
 
     await expect(page.getByText(/Total Expenses/i)).toBeVisible({ timeout: 15000 });
